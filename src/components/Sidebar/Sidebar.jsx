@@ -1,73 +1,265 @@
-const genres = ["All Genres", "Business", "Science", "Fiction", "Philosophy", "Biography"];
-const recommendations = ["Artist of the Month", "Book of the Year", "Top Genre", "Trending"];
+import { useState } from "react"; 
+import { ChevronUp, Plus, Star } from "lucide-react";
+import { Link } from "react-router-dom";
+
+const categories = [
+  {
+    name: "Development",
+    subcategories: [
+      "Web Development",
+      "Data Science",
+      "Mobile Development",
+      "Software Testing",
+      "Software Engineering",
+      "Software Development Tools",
+      "No-Code Development",
+    ],
+  },
+  {
+    name: "Business",
+    subcategories: [
+      "Entrepreneurship",
+      "Business Analytics",
+      "Management & Leadership",
+      "Project Management",
+      "Business Analytics & Intelligence",
+      "Human Resources",
+      "Sales",
+      "Communications",
+    ],
+  },
+  {
+    name: "Finance & Accounting",
+    subcategories: [
+      "Financial Analysis",
+      "Financial Modeling",
+      "Investing & Trading",
+      "Banking & Insurance",
+      "Cryptocurrency & Blockchain",
+      "Budgeting & Forecasting",
+      "Tax Preparation",
+      "Excel for Finance",
+    ],
+  },
+  {
+    name: "IT & Software",
+    subcategories: [
+      "Network & Security",
+      "Hardware & Operating Systems",
+      "Cloud Computing",
+      "Database Management (SQL, NoSQL)",
+      "Ethical Hacking",
+      "Software Testing",
+    ],
+  },
+  {
+    name: "Office Productivity",
+    subcategories: [
+      "Web Development",
+      "Data Science",
+      "Mobile Development",
+      "Software Testing",
+      "Software Engineering",
+      "Software Development Tools",
+      "No-Code Development",
+    ],
+  },
+  {
+    name:"Personal Development",
+    subcategories: [
+      "Web Development",
+      "Data Science",
+      "Mobile Development",
+      "Software Testing",
+      "Software Engineering",
+      "Software Development Tools",
+      "No-Code Development",
+    ],
+  },
+  {
+    name: "Design",
+    subcategories: [
+      "UI/UX Design",
+      "Graphic Design",
+    ],
+  },
+  {
+    name:"Marketing",
+    subcategories: [
+      "Digital Marketing",
+      "Social Media",
+    ],
+  },
+  // {
+  //   name: "Photography & Video",
+  //   subcategories: [
+  //     "Web Development",
+  //     "Data Science",
+  //     "Mobile Development",
+  //     "Software Testing",
+  //     "Software Engineering",
+  //     "Software Development Tools",
+  //     "No-Code Development",
+  //   ],
+  // },
+  // {
+  //   name:"Music",
+  //   subcategories: [
+  //     "Web Development",
+  //     "Data Science",
+  //     "Mobile Development",
+  //     "Software Testing",
+  //     "Software Engineering",
+  //     "Software Development Tools",
+  //     "No-Code Development",
+  //   ],
+  // },
+  // {
+  //   name: "Health & Fitness",
+  //   subcategories: [
+  //     "Web Development",
+  //     "Data Science",
+  //     "Mobile Development",
+  //     "Software Testing",
+  //     "Software Engineering",
+  //     "Software Development Tools",
+  //     "No-Code Development",
+  //   ],
+  // },
+];
+
+const tools = [
+  { name: "HTML 5", users: 1200 },
+  { name: "CSS 3", users: 980 },
+  { name: "React", users: 2200 },
+  { name: "Webflow", users: 540 },
+  { name: "Node.js", users: 870 },
+  { name: "Laravel", users: 640 },
+  { name: "Saas", users: 400 },
+  { name: "Wordpress", users: 1250 },
+];
+
+const ratings = [
+  { label: "5 Star", count: 1520 },
+  { label: "4 Star & up", count: 2110 },
+  { label: "3 Star & up", count: 3120 },
+  { label: "2 Star & up", count: 4210 },
+  { label: "1 Star & up", count: 5030 },
+];
+
+const durations = [
+  "6-12 Months",
+  "3-6 Months",
+  "1-3 Months",
+  "1-4 Weeks",
+  "1-7 Days",
+];
 
 export default function Sidebar() {
+  const [expanded, setExpanded] = useState({});
+
+  const toggleExpand = (category) => {
+    setExpanded((prev) => ({ ...prev, [category]: !prev[category] }));
+  };
+
   return (
-    <>
-      {/* Mobile Sidebar (hidden on desktop) */}
-      <div className="md:hidden bg-white p-4 mb-4 border-b">
-        <details className="dropdown">
-          <summary className="btn btn-sm btn-ghost">☰ Menu</summary>
-          <div className="p-2 shadow menu dropdown-content z-[1] bg-base-100 rounded-box w-52">
-            <div>
-              <h3 className="text-sm font-bold mb-2">Book by Genre</h3>
-              <ul>
-                {genres.map((genre) => (
-                  <li
-                    key={genre}
-                    className="text-sm px-2 py-1 rounded cursor-pointer hover:bg-sky-100 text-gray-700"
-                  >
-                    {genre}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-sm font-bold mb-2">Recommendations</h3>
-              <ul>
-                {recommendations.map((item) => (
-                  <li
-                    key={item}
-                    className="text-sm px-2 py-1 rounded cursor-pointer hover:bg-sky-100 text-gray-700"
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </details>
+    <aside className="hidden md:block w-64 bg-white p-4 border-r border-gray-200 h-[calc(100vh-180px)] sticky top-28 overflow-y-auto space-y-6">
+      {/* Category Section */}
+      <div>
+        <h3 className="text-sm font-bold mb-2">CATEGORY</h3>
+
+        {/* All Genre Link */}
+        <ul className="space-y-1 mb-2">
+          <li>
+            <Link
+              to="/all-genres"
+              className="text-sm text-gray-700 px-2 py-1 rounded block hover:bg-sky-100 transition-all duration-200 font-medium"
+            >
+              All Genre
+            </Link>
+          </li>
+        </ul>
+
+        <ul className="space-y-1">
+          {categories.map((cat) => (
+            <li key={cat.name}>
+              <div
+                onClick={() => toggleExpand(cat.name)}
+                className="flex items-center justify-between text-sm px-2 py-1 rounded cursor-pointer hover:bg-sky-100 text-gray-700 transition-all duration-200"
+              >
+                <span>{cat.name}</span>
+                {expanded[cat.name] ? <ChevronUp size={14} /> : <Plus size={14} />}
+              </div>
+              {expanded[cat.name] && (
+                <ul className="ml-4 mt-1 space-y-1">
+                  {cat.subcategories.map((sub) => (
+                    <li key={sub}>
+                      <Link
+                        to={`/subcategory/${sub}`}
+                        className="block text-sm text-gray-600 hover:text-sky-600 hover:bg-sky-100 rounded px-2 py-1 transition-all duration-200"
+                      >
+                        {sub}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
       </div>
 
-      {/* Desktop Sidebar (hidden on mobile) */}
-      <aside className="hidden md:block w-64 bg-white p-4 border-r border-gray-200 h-[calc(100vh-180px)] sticky top-28 overflow-y-auto">
-        <div>
-          <h3 className="text-sm font-bold mb-2">Book by Genre</h3>
-          <ul className="space-y-1">
-            {genres.map((genre) => (
-              <li
-                key={genre}
-                className="text-sm px-2 py-1 rounded cursor-pointer hover:bg-sky-100 text-gray-700"
+      {/* Tools Section */}
+      <div>
+        <h3 className="text-sm font-bold mb-2">TOOLS</h3>
+        <ul className="space-y-1">
+          {tools.map((tool) => (
+            <li key={tool.name} className="flex justify-between items-center px-2 py-1 rounded hover:bg-sky-100 transition-all duration-200">
+              <Link
+                to={`/tools/${tool.name}`}
+                className="text-sm text-gray-700 hover:text-sky-600 flex-1"
               >
-                {genre}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="mt-6">
-          <h3 className="text-sm font-bold mb-2">Recommendations</h3>
-          <ul className="space-y-1">
-            {recommendations.map((item) => (
-              <li
-                key={item}
-                className="text-sm px-2 py-1 rounded cursor-pointer hover:bg-sky-100 text-gray-700"
-              >
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </aside>
-    </>
+                {tool.name}
+              </Link>
+              <span className="text-xs text-gray-500">{tool.users}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Rating Section */}
+      <div>
+        <h3 className="text-sm font-bold mb-2">RATING</h3>
+        <ul className="space-y-1">
+          {ratings.map((rating) => (
+            <li key={rating.label}>
+              <label className="flex items-center justify-between gap-2 text-sm px-2 py-1 cursor-pointer hover:bg-sky-100 rounded transition-all duration-200">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" className="form-checkbox" />
+                  <Star size={14} className="text-yellow-400" />
+                  <span>{rating.label}</span>
+                </div>
+                <span className="text-xs text-gray-500">{rating.count}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Duration Section */}
+      <div>
+        <h3 className="text-sm font-bold mb-2">DURATION</h3>
+        <ul className="space-y-1">
+          {durations.map((duration) => (
+            <li key={duration}>
+              <label className="flex items-center gap-2 text-sm px-2 py-1 cursor-pointer hover:bg-sky-100 rounded transition-all duration-200">
+                <input type="checkbox" className="form-checkbox" />
+                {duration}
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </aside>
   );
 }
