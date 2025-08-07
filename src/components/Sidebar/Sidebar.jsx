@@ -12,7 +12,6 @@ const categories = [
       "Software Testing",
       "Software Engineering",
       "Software Development Tools",
-      "No-Code Development",
     ],
   },
   {
