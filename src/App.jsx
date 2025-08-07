@@ -11,6 +11,7 @@ import Borrowed from './pages/Borrowed/Borrowed';
 import FillUpForm from './components/FillUpForm/FillUpForm';
 import Dashboard from './pages/Dashboad/Dashboad';
 import UploadBookPage from './components/Upload/UploadBookPage';
+import AllGenres from './pages/AllGenres/AllGenres';
 
 function App() {
   return (
@@ -25,7 +26,7 @@ function App() {
                   <Route path="/fill-up-form" element={<FillUpForm />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/upload" element={<UploadBookPage />} />
-
+                  <Route path="/all-genres" element={<AllGenres />} />
                           </Route>
       </Routes>
             </main>
