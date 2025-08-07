@@ -10,12 +10,12 @@
 //   return (
 //     <div className="min-h-screen bg-gray-50 py-15.5">
 //       <Navbar />
-      
+
 //       {/* Header Section */}
 //       <div className="bg-sky-500 text-white px-4 sm:px-6 lg:px-8 py-4 text-lg sm:text-xl font-semibold">
 //         My Library
 //       </div>
-      
+
 //       {/* Breadcrumb */}
 //       <div className="bg-gray-100 px-4 sm:px-6 lg:px-8 py-2 text-xs text-gray-500">
 //         Dashboard / Site Page / My Library
@@ -26,7 +26,7 @@
 //         {/* Mobile Sidebar Toggle (if needed) */}
 //         <Sidebar />
 
-        
+
 //         {/* Content Area */}
 //         <main className="flex-1">
 //           <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200 shadow-sm">
@@ -69,7 +69,7 @@ import axios from "axios";
 import Section from "../../components/Section/Section";
 import BookSlider from "../../components/BookSlider/BookSlider";
 import FeaturedBanner from "../../components/FeaturedBanner/FeaturedBanner";
-
+import api from "../../api";
 export default function Home() {
   const [popularBooks, setPopularBooks] = useState([]);
   const [recommendedBooks, setRecommendedBooks] = useState([]);
@@ -77,25 +77,25 @@ export default function Home() {
   // ✅ Transform function for any book
   const transformBook = (book, index) => ({
     id: book.id || index,
-    title: book.title || "Untitled",
+    title: book.name || "Untitled",
     author: book.author || book.authors || "Unknown Author",
-    image: book.image || book.coverImage || "https://via.placeholder.com/150x220.png?text=No+Cover",
-    rating: book.rating || 0,
-    ratingCount: book.ratingCount || 0,
-    summary: book.summary || "",
+    image: book.book_cover_url || book.coverImage || "https://via.placeholder.com/150x220.png?text=No+Cover",
+    rating: book.average_rating || 0,
+    ratingCount: book.rating_count || 0,
+    summary: book.short_description || "",
     publisher: book.publisher || "",
     publishDate: book.publishDate || "",
-    category: book.category || "",
-    pdfLink: book.pdfLink || "",
+    category: book.category.category_name || "",
+    pdfLink: book.pdf_file_url || "",
   });
 
   // ✅ Fetch Recommended
   useEffect(() => {
-    axios
-      .get("/books.json") // your local mock file or API endpoint
+    api
+      .get("/book/recommended-books")
       .then((res) => {
         console.log("✅ Recommended Raw Data:", res.data);
-        const recBooks = res.data.slice(0, 4).map(transformBook); // pick 4 for example
+        const recBooks = res.data.data.slice(0, 4).map(transformBook); // access `data` inside response
         setRecommendedBooks(recBooks);
       })
       .catch((err) => {
@@ -105,11 +105,11 @@ export default function Home() {
 
   // ✅ Fetch Popular
   useEffect(() => {
-    axios
-      .get("/books.json") // same file for demo
+    api
+      .get("/book/popular-books") // same file for demo
       .then((res) => {
         console.log("✅ Popular Raw Data:", res.data);
-        const popBooks = res.data.slice(4, 8).map(transformBook); // pick next 4
+        const popBooks = res.data.data.map(transformBook); // pick next 4
         setPopularBooks(popBooks);
       })
       .catch((err) => {
