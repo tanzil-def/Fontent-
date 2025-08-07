@@ -51,16 +51,16 @@ const categories = [
       // "Software Testing",
     ],
   },
-  {
-    name: "Office Productivity",
-    subcategories: [
-      "Microsoft Office Suite",
-      "Google Workspace",
-      "Time Management Tools ",
-      "Digital Note-taking",
-      "Task Automation",
-    ],
-  },
+  // {
+  //   name: "Office Productivity",
+  //   subcategories: [
+  //     "Microsoft Office Suite",
+  //     "Google Workspace",
+  //     "Time Management Tools ",
+  //     "Digital Note-taking",
+  //     "Task Automation",
+  //   ],
+  // },
   // {
   //   name:"Personal Development",
   //   subcategories: [
