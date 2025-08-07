@@ -70,58 +70,49 @@ import Section from "../../components/Section/Section";
 import BookSlider from "../../components/BookSlider/BookSlider";
 import FeaturedBanner from "../../components/FeaturedBanner/FeaturedBanner";
 import api from "../../api";
+import useApiFetch from "../../hooks/useApiFetch";
+
+const transformBook = (book, index) => ({
+  id: book.id || index,
+  title: book.name || "Untitled",
+  author: book.author || book.authors || "Unknown Author",
+  image: book.book_cover_url || book.coverImage || "https://via.placeholder.com/150x220.png?text=No+Cover",
+  rating: book.average_rating || 0,
+  ratingCount: book.rating_count || 0,
+  summary: book.short_description || "",
+  publisher: book.publisher || "",
+  publishDate: book.publishDate || "",
+  category: book.category.category_name || "",
+  pdfLink: book.pdf_file_url || "",
+});
 export default function Home() {
-  const [popularBooks, setPopularBooks] = useState([]);
-  const [recommendedBooks, setRecommendedBooks] = useState([]);
+ 
+  const { data: recommendedBooks, loading: loadingRec, error: errorRec } = useApiFetch(
+    "/book/recommended-books",
+    transformBook
+  );
 
-  // ✅ Transform function for any book
-  const transformBook = (book, index) => ({
-    id: book.id || index,
-    title: book.name || "Untitled",
-    author: book.author || book.authors || "Unknown Author",
-    image: book.book_cover_url || book.coverImage || "https://via.placeholder.com/150x220.png?text=No+Cover",
-    rating: book.average_rating || 0,
-    ratingCount: book.rating_count || 0,
-    summary: book.short_description || "",
-    publisher: book.publisher || "",
-    publishDate: book.publishDate || "",
-    category: book.category.category_name || "",
-    pdfLink: book.pdf_file_url || "",
-  });
-
-  // ✅ Fetch Recommended
-  useEffect(() => {
-    api
-      .get("/book/recommended-books")
-      .then((res) => {
-        console.log("✅ Recommended Raw Data:", res.data);
-        const recBooks = res.data.data.slice(0, 4).map(transformBook); // access `data` inside response
-        setRecommendedBooks(recBooks);
-      })
-      .catch((err) => {
-        console.error("❌ Recommended error:", err);
-      });
-  }, []);
-
-  // ✅ Fetch Popular
-  useEffect(() => {
-    api
-      .get("/book/popular-books") // same file for demo
-      .then((res) => {
-        console.log("✅ Popular Raw Data:", res.data);
-        const popBooks = res.data.data.map(transformBook); // pick next 4
-        setPopularBooks(popBooks);
-      })
-      .catch((err) => {
-        console.error("❌ Popular error:", err);
-      });
-  }, []);
-
+  const { data: popularBooks, loading: loadingPop, error: errorPop } = useApiFetch(
+    "/book/popular-books",
+    transformBook
+  );
+  
+  
   return (
     <div className="min-h-screen bg-gray-50 py-4">
       <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200 shadow-sm mx-4 sm:mx-6 lg:mx-8">
-        <Section title="Recommended" books={recommendedBooks} />
-        <Section title="Popular" books={popularBooks} />
+        <Section 
+          title="Recommended" 
+          books={recommendedBooks} 
+          loading={loadingRec}
+          error={errorRec}
+        />
+        <Section
+         title="Popular"
+         books={popularBooks}
+         loading={loadingPop}
+         error={errorPop}
+        />
         <BookSlider />
         <FeaturedBanner />
       </div>

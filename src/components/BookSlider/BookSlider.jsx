@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { FaStar, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import useApiFetch from '../../hooks/useApiFetch'
 
 const BookSlider = () => {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-  const [books, setBooks] = useState([]);
+  // const [books, setBooks] = useState([]);
 
   const transformBook = (book, index) => ({
     id: book.id || index,
@@ -23,19 +24,11 @@ const BookSlider = () => {
     category: book.category?.category_name || "",
     pdfLink: book.pdf_file_url || "",
   });
-  const fetchBooks = async () => {
-    try {
-      const res = await api.get('/book/new-collection');
-      const transformed = res.data.data.map(transformBook);
-      setBooks(transformed);
-    } catch (err) {
-      console.error("❌ Failed to fetch books:", err);
-    }
-  };
 
-  useEffect(() => {
-    fetchBooks();
-  }, []);
+  const { data: books, loading: loading, error: error } = useApiFetch(
+    "/book/new-collection",
+    transformBook
+  );
 
   const visibleCards = 4;
   const maxIndex = books.length - visibleCards;
@@ -55,6 +48,9 @@ const BookSlider = () => {
   const goToDetails = (bookId) => {
     navigate(`/book/${bookId}`);
   };
+
+  if (loading) return <p className="p-6 text-center">Loading...</p>;
+  if (error) return <p className="p-6 text-center text-red-500">Failed to load books.</p>;
 
   return (
     <div className="bg-white py-8 px-4 sm:px-6 lg:px-8">
