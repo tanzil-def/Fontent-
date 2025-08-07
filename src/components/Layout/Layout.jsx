@@ -24,9 +24,9 @@ export default function Layout() {
         {/* Breadcrumb with links */}
         <div className="bg-gray-100 px-4 sm:px-6 lg:px-8 py-2 text-xs text-gray-600">
           <nav className="space-x-2 text-xs text-gray-600">
-  <Link to="/" className="hover:underline text-gray-700">Dashboard</Link>
+  <Link to="/dashboard" className="hover:underline text-gray-700">Dashboard</Link>
   <span>/</span>
-  <Link to="/site" className="hover:underline text-gray-700">Site Page</Link>
+  <Link to="/" className="hover:underline text-gray-700">Site Page</Link>
   <span>/</span>
   <Link to="/library" className="hover:underline font-semibold text-gray-700">My Library</Link>
 </nav>
