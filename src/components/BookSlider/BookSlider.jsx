@@ -2,59 +2,40 @@
 import React, { useState, useEffect } from 'react';
 import { FaStar, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import api from '../../api';
 
 const BookSlider = () => {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const [books, setBooks] = useState([]);
 
-  const books = [
-    {
-      id: 1,
-      title: "Building AI Agents with LLMs, RAG, and Knowledge Graphs",
-      author: "Tom Hardy",
-      description: "An adventurer’s perilous quest in the Amazon jungle.",
-      rating: 4,
-      status: "Out Of Stock",
-      image: "https://covers.openlibrary.org/b/id/10523922-L.jpg",
-    },
-    {
-      id: 2,
-      title: "Empire of AI",
-      author: "Karen Hao",
-      description: "Authentic Italian recipes to bring the flavors of Italy home.",
-      rating: 4,
-      status: "Available",
-      image: "https://covers.openlibrary.org/b/id/10523922-L.jpg",
-    },
-    {
-      id: 3,
-      title: "Learning React",
-      author: "Alex Johnson",
-      description: "A comprehensive guide to mastering React.js and modern web development.",
-      rating: 5,
-      status: "Out Of Stock",
-      image: "https://covers.openlibrary.org/b/id/10523922-L.jpg",
-    },
-    {
-      id: 4,
-      title: "The Silent Forest",
-      author: "David Kim",
-      description: "A chilling suspense story set in a haunted woodland.",
-      rating: 3,
-      status: "Upcoming",
-      image: "https://covers.openlibrary.org/b/id/10523922-L.jpg",
-    },
-    {
-      id: 5,
-      title: "Advanced Node.js",
-      author: "John Smith",
-      description: "Master server-side development with Node.js.",
-      rating: 4,
-      status: "Available",
-      image: "https://covers.openlibrary.org/b/id/10523922-L.jpg",
-    },
-  ];
+  const transformBook = (book, index) => ({
+    id: book.id || index,
+    title: book.name || "Untitled",
+    author: book.author || book.authors || "Unknown Author",
+    image: book.book_cover_url || book.coverImage || "https://via.placeholder.com/150x220.png?text=No+Cover",
+    rating: book.average_rating || 0,
+    ratingCount: book.rating_count || 0,
+    summary: book.short_description || "",
+    publisher: book.publisher || "",
+    publishDate: book.publishDate || "",
+    category: book.category?.category_name || "",
+    pdfLink: book.pdf_file_url || "",
+  });
+  const fetchBooks = async () => {
+    try {
+      const res = await api.get('/book/new-collection');
+      const transformed = res.data.data.map(transformBook);
+      setBooks(transformed);
+    } catch (err) {
+      console.error("❌ Failed to fetch books:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchBooks();
+  }, []);
 
   const visibleCards = 4;
   const maxIndex = books.length - visibleCards;
@@ -113,13 +94,12 @@ const BookSlider = () => {
                     />
                     {book.status && (
                       <span
-                        className={`absolute top-2 left-2 text-white text-xs px-2 py-1 rounded ${
-                          book.status === 'Out Of Stock'
-                            ? 'bg-red-600'
-                            : book.status === 'Upcoming'
+                        className={`absolute top-2 left-2 text-white text-xs px-2 py-1 rounded ${book.status === 'Out Of Stock'
+                          ? 'bg-red-600'
+                          : book.status === 'Upcoming'
                             ? 'bg-orange-500'
                             : 'bg-green-600'
-                        }`}
+                          }`}
                       >
                         {book.status}
                       </span>
@@ -137,9 +117,8 @@ const BookSlider = () => {
                         {[...Array(5)].map((_, i) => (
                           <FaStar
                             key={i}
-                            className={`${
-                              i < book.rating ? 'text-yellow-400' : 'text-gray-300'
-                            } w-3 h-3`}
+                            className={`${i < book.rating ? 'text-yellow-400' : 'text-gray-300'
+                              } w-3 h-3`}
                           />
                         ))}
                       </div>
