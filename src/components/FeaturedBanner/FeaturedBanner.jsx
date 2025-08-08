@@ -62,7 +62,7 @@ const FeaturedBanner = () => {
           {/* THIS IS THE FIX: Link now uses the correct book ID */}
           <Link
             to={`/book/${currentBook.id}`} 
-            className="inline-block px-5 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-600 hover:text-white transition-all text-sm"
+            className="inline-block px-5 py-2 border border-sky-600 text-sky-600 rounded hover:bg-sky-600 hover:text-white transition-all text-sm"
           >
             VIEW DETAILS →
           </Link>
