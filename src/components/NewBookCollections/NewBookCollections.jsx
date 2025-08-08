@@ -71,7 +71,7 @@ const books = [
   },
   {
     id: 9,
-    title: "Practice of System and Network Administration, The: DevOps and other Best Practices for Enterprise IT, Volume 1",
+    title: "Practice of System and Network Administration",
     author: "Thomas Limoncelli, Christina Hogan & Strata Chalup ",
     image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754644753/network_mezj51.jpg",
     rating: 5,
