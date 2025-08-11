@@ -41,9 +41,9 @@ const REVIEWS_DB = {
     breakdown: { 5: 88, 4: 9, 3: 2, 2: 1, 1: 0 },
     images: [],
     reviews: [
-      { id: "r9", name: "Nadia Z.", title: "Clear cloud strategy playbook", stars: 5, country: "Canada", date: "May 10, 2024", verified: true, body: "Vendor‑neutral frameworks. Helped us choose a service model and avoid re‑architecture.", helpful: 22 },
-      { id: "r10", name: "Victor", title: "Strong patterns", stars: 4, country: "United States", date: "Aug 8, 2024", verified: false, body: "Good balance of business & tech requirements.", helpful: 5 },
-      { id: "r11", name: "Mei", title: "Great case studies", stars: 5, country: "Singapore", date: "Jan 20, 2025", verified: true, body: "Real migrations and pitfalls. Very useful.", helpful: 9 },
+      { id: "r9", name: "Nadia Zahan.", title: "Clear cloud strategy playbook", stars: 5, country: "Bangladesh", date: "May 10, 2024", verified: true, body: "Vendor‑neutral frameworks. Helped us choose a service model and avoid re‑architecture.", helpful: 22 },
+      { id: "r10", name: "Vitul Shohan", title: "Strong patterns", stars: 4, country: "Bangladesh", date: "Aug 8, 2024", verified: false, body: "Good balance of business & tech requirements.", helpful: 5 },
+      { id: "r11", name: "Purification Meril", title: "Great case studies", stars: 5, country: "Bangladesh", date: "Jan 20, 2025", verified: true, body: "Real migrations and pitfalls. Very useful.", helpful: 9 },
     ],
   },
   // 1 review
@@ -54,7 +54,7 @@ const REVIEWS_DB = {
     breakdown: { 5: 100, 4: 0, 3: 0, 2: 0, 1: 0 },
     images: [],
     reviews: [
-      { id: "r12", name: "Alisha", title: "Inspiring for founders", stars: 5, country: "United States", date: "March 5, 2023", verified: true, body: "Concise, motivating, and practical.", helpful: 3 },
+      { id: "r12", name: "Alisha Rahman", title: "Inspiring for founders", stars: 5, country: "Bangladesh", date: "March 5, 2023", verified: true, body: "Concise, motivating, and practical.", helpful: 3 },
     ],
   },
   // No reviews entries for other ids on purpose (e.g., "8", "11")
