@@ -1046,7 +1046,6 @@
 //   );
 // }
 
-
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Star, ChevronDown, Users, PlayCircle, Download } from "lucide-react";
@@ -1345,7 +1344,7 @@ export default function BookDetails() {
             </a>
           </div>
 
-  {/* Related Books (unchanged) */}
+          {/* Related Books (unchanged) */}
           <div className="mt-10">
             <h3 className="text-lg font-bold text-gray-800 mb-4">Related Books</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -1401,7 +1400,7 @@ export default function BookDetails() {
             </div>
           </div>
           {/* ===== end related ===== */}
-          
+
           {/* ===== Reviews with images + Top reviews (RIGHT SIDE, above Related) ===== */}
           <div className="mt-10">
             <h3 className="text-lg font-bold text-gray-800 mb-3">
