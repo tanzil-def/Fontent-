@@ -304,6 +304,25 @@ export default function BookDetails() {
             </a>
           </div>
 
+          <div className="mt-6">
+             <button
+              onClick={() => {
+                const stored = JSON.parse(localStorage.getItem("borrowedBooks")) || [];
+                const alreadyExists = stored.find((b) => b.id === bookData.id);
+
+                if (!alreadyExists) {
+                  stored.push({ ...bookData, quantity: 1 });
+                  localStorage.setItem("borrowedBooks", JSON.stringify(stored));
+                }
+
+                navigate("/borrowed");
+              }}
+              className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md w-full sm:w-auto block text-center"
+            >
+              Borrowed
+            </button>
+           </div>
+
           {/* Related Books (unchanged) */}
           <div className="mt-10">
             <h3 className="text-lg font-bold text-gray-800 mb-4">Related Books</h3>
