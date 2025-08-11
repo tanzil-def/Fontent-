@@ -1932,7 +1932,7 @@ export default function BookDetails() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t">
+                <div className="pt-4">
                   <div className="text-sm text-gray-700 mb-2">
                     Share your thoughts with other customers
                   </div>
@@ -1979,7 +1979,7 @@ export default function BookDetails() {
 
                 <div className="space-y-6">
                   {pack.reviews.map((r) => (
-                    <article key={r.id} className="border-b pb-6">
+                    <article key={r.id} className="border-b-amber-400 pb-6">
                       <div className="flex items-center gap-2">
                         <div className="flex">
                           {[...Array(5)].map((_, i) => (
