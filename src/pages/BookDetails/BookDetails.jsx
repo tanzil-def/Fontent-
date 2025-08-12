@@ -1344,7 +1344,7 @@ export default function BookDetails() {
           </div>
 
           {/* Availability + Audio + PDF */}
-          <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {/* <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <span className="text-green-600 font-medium text-sm inline-flex items-center">
                 <span className="h-3 w-3 bg-green-500 rounded-full animate-ping mr-2"></span>
@@ -1367,7 +1367,39 @@ export default function BookDetails() {
               <Download className="w-4 h-4" />
               PDF
             </a>
-          </div>
+          </div> */}
+
+          {/* Availability + Audio + PDF (PDF right, aligned with Audio) */}
+<div className="mt-6">
+  {/* Availability badge stays above */}
+  <span className="text-green-600 font-medium text-sm inline-flex items-center">
+    <span className="h-3 w-3 bg-green-500 rounded-full animate-ping mr-2"></span>
+    Available
+  </span>
+
+  {/* Row: Audio (left) + PDF (right) */}
+  <div className="mt-3 flex flex-wrap items-center gap-3">
+    {/* Audio section */}
+    <div className="flex items-center gap-2 text-sm">
+      <PlayCircle className="w-5 h-5 text-gray-600" />
+      <span className="text-gray-700">Audio Clip</span>
+      <div className="w-32 h-1 bg-gray-200 rounded-full mx-2 sm:mx-3">
+        <div className="w-1/3 h-full bg-sky-500 rounded-full"></div>
+      </div>
+    </div>
+
+    {/* PDF button stays on the right side */}
+    <a
+      href={bookData.pdfLink}
+      download
+      className="ml-auto inline-flex items-center gap-1 text-sm text-gray-700 font-semibold border border-gray-300 px-4 py-2 rounded hover:bg-gray-100"
+    >
+      <Download className="w-4 h-4" />
+      PDF
+    </a>
+  </div>
+</div>
+
 
           <div className="mt-6">
             <button
