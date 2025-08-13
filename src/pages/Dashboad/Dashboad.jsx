@@ -37,7 +37,7 @@ export default function Dashboard() {
             {/* NEW — Manage Books */}
             <li>
               <Link
-                to="/manage-books"
+                to="/admin/manage-books"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
                 <BookOpen size={18} /> Manage Books
@@ -47,7 +47,7 @@ export default function Dashboard() {
             {/* NEW — Manage Category */}
             <li>
               <Link
-                to="/manage-category"
+                to="/admin/manage-category"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
                 <Layers size={18} /> Manage Category

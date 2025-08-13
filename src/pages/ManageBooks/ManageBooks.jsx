@@ -276,17 +276,17 @@ export default function ManageBooks() {
           <h2 className="text-xl font-bold mb-6">Library</h2>
           <ul className="space-y-2">
             <li>
-              <Link to="/dashboard" className={navItem}>
+              <Link to="/admin" className={navItem}>
                 <CalendarDays size={18} /> Dashboard
               </Link>
             </li>
             <li>
-              <Link to="/manage-books" className={navItemActive}>
+              <Link to="/admin/manage-books" className={navItemActive}>
                 <BookOpen size={18} /> Manage Books
               </Link>
             </li>
             <li>
-              <Link to="/manage-category" className={navItem}>
+              <Link to="/admin/manage-category" className={navItem}>
                 <Layers size={18} /> Manage Category
               </Link>
             </li>

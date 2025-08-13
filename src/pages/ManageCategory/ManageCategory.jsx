@@ -49,7 +49,7 @@ export default function ManageCategory() {
           <ul className="space-y-3">
             <li>
               <Link
-                to="/dashboard"
+                to="/admin"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
                 <CalendarDays size={18} /> Dashboard
@@ -57,7 +57,7 @@ export default function ManageCategory() {
             </li>
             <li>
               <Link
-                to="/manage-books"
+                to="/admin/manage-books"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
                 <BookOpen size={18} /> Manage Books
@@ -65,7 +65,7 @@ export default function ManageCategory() {
             </li>
             <li>
               <Link
-                to="/manage-category"
+                to="/admin/manage-category"
                 className="flex items-center gap-2 text-sky-600 font-medium"
               >
                 <Layers size={18} /> Manage Category
