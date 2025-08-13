@@ -290,11 +290,11 @@ export default function ManageBooks() {
                 <Layers size={18} /> Manage Category
               </Link>
             </li>
-            <li>
+            {/* <li>
               <Link to="/upload" className={navItem}>
                 <Upload size={18} /> Upload Books
               </Link>
-            </li>
+            </li> */}
             <li>
               <Link to="/members" className={navItem}>
                 <Users size={18} /> Member

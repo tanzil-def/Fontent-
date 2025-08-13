@@ -71,14 +71,14 @@ export default function ManageCategory() {
                 <Layers size={18} /> Manage Category
               </Link>
             </li>
-            <li>
+            {/* <li>
               <Link
                 to="/upload"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
                 <Upload size={18} /> Upload Books
               </Link>
-            </li>
+            </li> */}
             <li>
               <Link
                 to="/members"
