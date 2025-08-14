@@ -114,11 +114,11 @@ export default function Dashboard() {
             { label: "Borrowed Books", value: 3504 },
             { label: "Returned Books", value: 683 },
             { label: "Overdue Books", value: 145 },
-            { label: "Missing Books", value: 32 },
+            // { label: "Missing Books", value: 32 },
             { label: "Total Books", value: 5654 },
-            { label: "Visitors", value: 1554 },
+            // { label: "Visitors", value: 1554 },
             { label: "New Members", value: 120 },
-            { label: "Pending", value: 222 },
+            { label: "Borrows Pending", value: 222 },
           ].map((item, i) => (
             <div key={i} className="bg-white rounded shadow p-4 text-center">
               <p className="text-sm text-gray-500">{item.label}</p>
