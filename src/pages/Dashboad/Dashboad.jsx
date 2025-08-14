@@ -20,6 +20,7 @@ import {
   Mail,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
 
 export default function Dashboard() {
   useEffect(() => {
@@ -121,7 +122,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md px-4 py-6 flex flex-col justify-between">
+      <Sidebar />
+      {/* <aside className="w-64 bg-white shadow-md px-4 py-6 flex flex-col justify-between">
         <div>
           <h2 className="text-xl font-bold mb-6">Library</h2>
           <ul className="space-y-3">
@@ -139,13 +141,13 @@ export default function Dashboard() {
               <Link to="/manage-category" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors">
                 <Layers size={18} /> Manage Category
               </Link>
-            </li>
+            </li> */}
             {/* <li>
               <Link to="/upload" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors">
                 <Upload size={18} /> Upload Books
               </Link>
             </li> */}
-            <li>
+            {/* <li>
               <Link to="/fill-up-form" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors">
                 <BookOpen size={18} /> Fill Up Form
               </Link>
@@ -172,7 +174,7 @@ export default function Dashboard() {
             <LogOut size={18} /> Logout
           </Link>
         </div>
-      </aside>
+      </aside> */}
 
       {/* Main */}
       <main className="flex-1 p-6 space-y-6">
