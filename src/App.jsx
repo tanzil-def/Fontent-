@@ -14,6 +14,7 @@ import UploadBookPage from './components/Upload/UploadBookPage';
 import AllGenres from './pages/AllGenres/AllGenres';
 import ManageBooks from './pages/ManageBooks/ManageBooks';
 import ManageCategory from './pages/ManageCategory/ManageCategory';
+import UserDashboard from './pages/user/UserDashboard';
 
 function App() {
   return (
@@ -31,6 +32,8 @@ function App() {
                   <Route path="/all-genres" element={<AllGenres />} />
                           <Route path="/manage-books" element={<ManageBooks />} />
                                   <Route path="/manage-category" element={<ManageCategory />} />
+                    <Route path="/user" element={<UserDashboard />} />
+
                           </Route>
       </Routes>
             </main>
