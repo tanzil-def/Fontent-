@@ -80,7 +80,7 @@ export default function Dashboard() {
             </li>
             <li>
               <Link
-                to="/borrowed"
+                to="/check-out"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
                 <BookOpen size={18} /> Check-out Books
@@ -88,10 +88,10 @@ export default function Dashboard() {
             </li>
             <li>
               <Link
-                to="/help"
+                to="/setting"
                 className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
               >
-                <HelpCircle size={18} /> Help
+                <HelpCircle size={18} /> Setting
               </Link>
             </li>
           </ul>
