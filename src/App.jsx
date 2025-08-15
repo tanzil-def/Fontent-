@@ -18,6 +18,7 @@ import UserDashboard from './pages/user/UserDashboard';
 import MyLoansBlank from './pages/MyLoansBlank/MyLoansBlank';
 import UserSettings from './pages/UserSettings/UserSettings';
 import UserHistory from './pages/UserHistory/UserHistory';
+import AdminSettings from './pages/AdminSettings/AdminSettings';
 
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
                     <Route path="/loans" element={<MyLoansBlank/>} />
                     <Route path="/settings" element={<UserSettings/>} />
                     <Route path="/history" element={<UserHistory/>} />
+                    <Route path="/setting" element={<AdminSettings/>} />
                     
 
                           </Route>
