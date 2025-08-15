@@ -46,7 +46,7 @@ export default function Sidebar() {
           </li>
 
           <li>
-            <NavLink to="/members" className={itemClass}>
+            <NavLink to="/user" className={itemClass}>
               <Users size={18} /> Member
             </NavLink>
           </li>
