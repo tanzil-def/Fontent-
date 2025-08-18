@@ -50,11 +50,11 @@ export default function UserSidebar({ active = "dashboard" }) {
               <HandHeart size={18} /> Donation Request
             </Link>
           </li>
-          <li>
+          {/* <li>
             <Link to="/loans" className={isLoans ? on : off}>
               <Clock size={18} /> My Loans
             </Link>
-          </li>
+          </li> */}
           <li>
             <Link to="/history" className={isHistory ? on : off}>
               <CheckCircle size={18} /> History
@@ -69,7 +69,7 @@ export default function UserSidebar({ active = "dashboard" }) {
       </div>
       <div>
         <Link
-          to="/logout"
+          to="/"
           className="flex items-center gap-2 text-red-600 font-medium hover:underline underline-offset-4"
         >
           <LogOut size={18} /> Logout

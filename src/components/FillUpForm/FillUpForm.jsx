@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, Upload, Users, BookOpen, HelpCircle, LogOut } from "lucide-react";
-import Sidebar from "../DashboardSidebar/DashboardSidebar";
+import Sidebar from "../Sidebar/Sidebar";
 
 export default function FillUpForm() {
   const [borrowedBooks, setBorrowedBooks] = useState([]);

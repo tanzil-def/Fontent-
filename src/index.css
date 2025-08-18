@@ -10,6 +10,18 @@
   background-color: #f8f9fa;
 }
 
+/* safety net (global) */
+*::-webkit-scrollbar-button { display:none; width:0; height:0; }
+
+/* Hide scrollbars but keep horizontal scroll functional */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;           /* Chrome/Safari/Edge */
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge legacy */
+  scrollbar-width: none;    /* Firefox */
+}
+
 
 
 

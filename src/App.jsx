@@ -19,6 +19,8 @@ import MyLoansBlank from './pages/MyLoansBlank/MyLoansBlank';
 import UserSettings from './pages/UserSettings/UserSettings';
 import UserHistory from './pages/UserHistory/UserHistory';
 import AdminSettings from './pages/AdminSettings/AdminSettings';
+import ManageFeature from './pages/ManageFeature/ManageFeature';
+import DonationRequest from './pages/DonationRequest/DonationRequest';
 
 
 function App() {
@@ -42,6 +44,10 @@ function App() {
                     <Route path="/settings" element={<UserSettings/>} />
                     <Route path="/history" element={<UserHistory/>} />
                     <Route path="/setting" element={<AdminSettings/>} />
+                    <Route path="/manage-feature" element={<ManageFeature />} />
+                    <Route path="/donation-request" element={<DonationRequest />} />
+
+
                     
 
                           </Route>
