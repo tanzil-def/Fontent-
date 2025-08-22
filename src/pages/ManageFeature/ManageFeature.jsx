@@ -1,7 +1,6 @@
 // src/pages/ManageFeature/ManageFeature.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
-  SlidersHorizontal,
   RefreshCcw,
   Loader2,
   CheckCircle2,
@@ -10,28 +9,95 @@ import {
   BookOpen,
   Search,
   Filter,
-  Check,
 } from "lucide-react";
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
 import sectionedBooks from "../../data/sampleBooks";
+
+/* ---------- Smart API base + helpers ----------
+ * Priority:
+ * 1) VITE_API_URL or VITE_BACKEND_URL (e.g. http://localhost:8000/api)
+ * 2) If running on localhost:5173, default to http://localhost:8000/api
+ * 3) Otherwise fallback to /api (requires proxy in Vite)
+ */
+const RAW_ENV =
+  (import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "").trim();
+const ENV_BASE = RAW_ENV.replace(/\/+$/, "");
+
+const isDevLocal5173 =
+  typeof window !== "undefined" &&
+  window.location.hostname === "localhost" &&
+  window.location.port === "5173";
+
+// default dev backend if none provided (prevents 5173 404)
+const DEFAULT_DEV_API = "http://localhost:8000/api";
+const API_BASE = ENV_BASE || (isDevLocal5173 ? DEFAULT_DEV_API : "") || ""; // "" => use /api
+
+const base = (p) => (API_BASE ? `${API_BASE}${p}` : `/api${p}`);
+
+/* Build all candidate endpoints for add/remove to handle different backends */
+const addCandidates = (bookId) => [
+  base(`/featured-books/${encodeURIComponent(bookId)}/add`), // style A
+  base(`/featured-books/add/${encodeURIComponent(bookId)}`), // style B
+  base(`/featured-books/${encodeURIComponent(bookId)}`), // style C (body-driven or idempotent)
+];
+
+const removeCandidates = (featuredId) => [
+  base(`/featured-books/remove/${encodeURIComponent(featuredId)}`), // style A
+  base(`/featured-books/${encodeURIComponent(featuredId)}/remove`), // style B
+  base(`/featured-books/${encodeURIComponent(featuredId)}`), // style C (DELETE by id)
+];
+
+const listCandidates = () => [
+  base(`/featured-books/list`),
+  base(`/featured-books`),
+];
+
+/* Try multiple URLs until one succeeds (2xx). Optionally send JSON body. */
+async function fetchWithFallback(method, urls, body) {
+  let lastErr;
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (res.ok) return res;
+      // Some backends return 204 No Content on success
+      if (res.status === 204) return res;
+      lastErr = new Error(`HTTP ${res.status} at ${url}`);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("All endpoints failed");
+}
 
 /* ---------- Small UI bits ---------- */
 
 function Switch({ checked, onChange, disabled }) {
   return (
-    <label className="inline-flex items-center select-none">
+    <label
+      className="inline-flex items-center select-none"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
       <span className="relative inline-flex items-center">
         <input
           type="checkbox"
           className="sr-only peer"
           checked={!!checked}
-          onChange={(e) => onChange?.(e.target.checked)}
+          onChange={(e) => {
+            e.stopPropagation();
+            onChange?.(e.target.checked);
+          }}
           disabled={disabled}
         />
         <span
           className={`
             h-5 w-9 rounded-full transition-colors
-            ${checked ? "bg-sky-600" : "bg-gray-300"}
+            ${checked ? "bg-green-600" : "bg-red-500"}
             ${disabled ? "opacity-60" : ""}
             relative after:content-[''] after:absolute after:top-0.5 after:left-0.5
             after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform
@@ -46,15 +112,13 @@ function Switch({ checked, onChange, disabled }) {
 /* ---------- Helpers to normalize data ---------- */
 
 const normalizeFeatured = (item) => {
-  const book = item.book || item;
-  const cover =
-    book.coverImage || book.image || "https://dummyimage.com/160x160/e5e7eb/9ca3af&text=📘";
+  const book = item?.book || item;
   return {
-    featuredId: String(item.id ?? book.id ?? Math.random().toString(36).slice(2)),
-    bookId: String(item.book_id ?? item.bookId ?? book.book_id ?? item.id ?? ""),
-    title: book.title || "—",
-    author: book.author || book.authors || "—",
-    category: book.category || "—",
+    featuredId: String(item?.id ?? book?.id ?? Math.random().toString(36).slice(2)),
+    bookId: String(item?.book_id ?? item?.bookId ?? book?.book_id ?? item?.id ?? ""),
+    title: book?.title || "—",
+    author: book?.author || book?.authors || "—",
+    category: book?.category || "—",
   };
 };
 
@@ -80,7 +144,6 @@ export default function ManageFeature() {
   // server state
   const [loading, setLoading] = useState(false);
   const [featured, setFeatured] = useState([]); // array of normalizeFeatured
-  const [error, setError] = useState("");
 
   // catalog (cards)
   const [catalog, setCatalog] = useState([]); // array of normalizeCatalog
@@ -100,21 +163,23 @@ export default function ManageFeature() {
     setTimeout(() => setToast({ show: false, msg: "" }), 1600);
   };
 
-  /* -------- load featured list from backend -------- */
-  const fetchFeatured = async () => {
-    setLoading(true);
-    setError("");
+  // pagination
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 12;
+
+  /* -------- load featured list (tries multiple endpoints) -------- */
+  const fetchFeatured = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch("/api/featured-books/list", { method: "GET" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await fetchWithFallback("GET", listCandidates());
+      // Some backends return [] or {data:[]}
+      const data = await res.json().catch(() => []);
       const arr = Array.isArray(data) ? data : data?.data || [];
       setFeatured(arr.map(normalizeFeatured));
-    } catch (e) {
-      setError("Could not load featured books. Try Refresh.");
+    } catch {
       setFeatured([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -159,10 +224,10 @@ export default function ManageFeature() {
     return m;
   }, [featured]);
 
-  /* -------- filtered catalog for search/view -------- */
+  /* -------- filtered + paged catalog -------- */
   const filteredCatalog = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = catalog.filter((c) => {
+    const baseList = catalog.filter((c) => {
       if (!q) return true;
       return (
         c.title.toLowerCase().includes(q) ||
@@ -172,46 +237,44 @@ export default function ManageFeature() {
       );
     });
 
-    if (view === "checked") {
-      return base.filter((c) => featuredMapByBookId.has(c.id));
-    }
-    if (view === "unchecked") {
-      return base.filter((c) => !featuredMapByBookId.has(c.id));
-    }
-    return base;
+    if (view === "checked") return baseList.filter((c) => featuredMapByBookId.has(c.id));
+    if (view === "unchecked") return baseList.filter((c) => !featuredMapByBookId.has(c.id));
+    return baseList;
   }, [catalog, search, view, featuredMapByBookId]);
+
+  // pagination state
+  useEffect(() => setPage(1), [search, view]);
+  const totalItems = filteredCatalog.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const startIdx = (page - 1) * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
+  const pageItems = filteredCatalog.slice(startIdx, endIdx);
 
   const checkedCount = featured.length;
 
-  /* -------- actions: check/uncheck (POST/DELETE) -------- */
+  /* -------- actions: check/uncheck with fallback URLs -------- */
   const setPending = (bookId, v) =>
     setPendingById((prev) => ({ ...prev, [bookId]: v }));
 
   const handleCheck = async (book) => {
-    // if already checked → just no-op
     if (featuredMapByBookId.has(book.id)) return;
     setPending(book.id, true);
-    setError("");
     try {
-      const res = await fetch(`/api/featured-books/${encodeURIComponent(book.id)}/add`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // best: API returns created row; try to read id; otherwise refresh
-      try {
-        const data = await res.json().catch(() => null);
-        if (data && (data.id || data?.data?.id)) {
-          const created = normalizeFeatured(data.id ? data : data.data);
-          setFeatured((prev) => [{ ...created, title: book.title, author: book.author, category: book.category }, ...prev]);
-        } else {
-          await fetchFeatured();
-        }
-      } catch {
-        await fetchFeatured();
+      // Try multiple endpoint shapes; some backends expect action in body
+      const res = await fetchWithFallback("POST", addCandidates(book.id), { action: "add" });
+      // If backend returns JSON, fine; if 204, also fine
+      if (res.status !== 204) {
+        await res.json().catch(() => null);
       }
+      await fetchFeatured(true); // silent refresh from server (authoritative)
       showToast("Book marked as Featured.");
-    } catch (e) {
-      setError("Add failed. Please try again.");
+    } catch {
+      // surface a helpful one-liner just once
+      if (isDevLocal5173 && !ENV_BASE) {
+        showToast("Backend not reachable from 5173. Start http://localhost:8000 or set VITE_API_URL.");
+      } else {
+        showToast("Add failed. Check backend route or VITE_API_URL.");
+      }
     } finally {
       setPending(book.id, false);
     }
@@ -229,17 +292,20 @@ export default function ManageFeature() {
       return;
     }
     setPending(book.id, true);
-    setError("");
     try {
-      const res = await fetch(`/api/featured-books/remove/${encodeURIComponent(f.featuredId)}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setFeatured((prev) => prev.filter((x) => x.featuredId !== f.featuredId));
+      const res = await fetchWithFallback("DELETE", removeCandidates(f.featuredId));
+      if (res.status !== 204) {
+        await res.json().catch(() => null);
+      }
+      await fetchFeatured(true);
       showToast("Removed from Featured.");
       closeConfirm();
-    } catch (e) {
-      setError("Remove failed. Please try again.");
+    } catch {
+      if (isDevLocal5173 && !ENV_BASE) {
+        showToast("Backend not reachable from 5173. Start http://localhost:8000 or set VITE_API_URL.");
+      } else {
+        showToast("Remove failed. Check backend route or VITE_API_URL.");
+      }
     } finally {
       setPending(book.id, false);
     }
@@ -254,15 +320,13 @@ export default function ManageFeature() {
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-            {/* <SlidersHorizontal className="text-gray-700" size={20} />
-            Manage Feature */}
             <span className="text-gray-400 font-normal">• Featured Books</span>
           </h1>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={fetchFeatured}
+              onClick={() => fetchFeatured()}
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 shadow hover:bg-gray-200 disabled:opacity-60"
             >
@@ -319,19 +383,11 @@ export default function ManageFeature() {
               </span>
             </div>
           </div>
-
-          {error && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-start gap-2">
-              <AlertTriangle size={16} className="mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
         </section>
 
         {/* Cards grid */}
         <section className="bg-white rounded-lg shadow border border-gray-200 p-4 md:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {/* Loading skeletons while GET featured in progress (optional) */}
             {loading &&
               Array.from({ length: 8 }).map((_, i) => (
                 <div key={`sk-${i}`} className="rounded-lg border border-gray-200 p-4 animate-pulse">
@@ -342,14 +398,12 @@ export default function ManageFeature() {
                 </div>
               ))}
 
-            {!loading && filteredCatalog.length === 0 && (
-              <div className="col-span-full text-sm text-gray-500">
-                No books match your search.
-              </div>
+            {!loading && pageItems.length === 0 && (
+              <div className="col-span-full text-sm text-gray-500">No books match your search.</div>
             )}
 
             {!loading &&
-              filteredCatalog.map((b) => {
+              pageItems.map((b) => {
                 const checked = featuredMapByBookId.has(b.id);
                 const pending = !!pendingById[b.id];
 
@@ -357,8 +411,7 @@ export default function ManageFeature() {
                   <article
                     key={b.id}
                     className={`rounded-lg border p-4 cursor-pointer transition
-                                ${checked ? "border-sky-300 ring-1 ring-sky-100 bg-sky-50/30" : "border-gray-200 bg-white"}
-                               `}
+                      ${checked ? "border-sky-300 ring-1 ring-sky-100 bg-sky-50/30" : "border-gray-200 bg-white"}`}
                     onClick={() => (checked ? askUncheck(b) : handleCheck(b))}
                   >
                     <div className="h-28 w-full rounded bg-gray-50 overflow-hidden ring-1 ring-gray-200 flex items-center justify-center">
@@ -378,12 +431,10 @@ export default function ManageFeature() {
                       <p className="text-xs text-gray-500">{b.category}</p>
                     </div>
 
-                    {/* Top-right small switch */}
                     <div className="flex items-center justify-between mt-3">
                       <span
                         className={`text-[11px] px-2 py-0.5 rounded-full ring-1
-                          ${checked ? "bg-green-50 text-green-700 ring-green-200" : "bg-gray-50 text-gray-600 ring-gray-200"}
-                        `}
+                          ${checked ? "bg-green-50 text-green-700 ring-green-200" : "bg-red-50 text-red-700 ring-red-200"}`}
                       >
                         {checked ? "Checked" : "Unchecked"}
                       </span>
@@ -397,41 +448,60 @@ export default function ManageFeature() {
                         }}
                       />
                     </div>
-
-                    {/* Primary action button */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (checked) askUncheck(b);
-                        else handleCheck(b);
-                      }}
-                      className={`mt-3 w-full inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow
-                        ${
-                          checked
-                            ? "bg-red-600 text-white hover:bg-red-500 focus:ring-2 focus:ring-red-400"
-                            : "bg-sky-600 text-white hover:bg-sky-500 focus:ring-2 focus:ring-sky-400"
-                        }
-                      `}
-                      disabled={pending}
-                    >
-                      {pending ? (
-                        <Loader2 className="animate-spin" size={16} />
-                      ) : checked ? (
-                        <>
-                          Uncheck
-                        </>
-                      ) : (
-                        <>
-                          <Check size={16} />
-                          Check
-                        </>
-                      )}
-                    </button>
                   </article>
                 );
               })}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-sm text-gray-600">
+                Showing <span className="font-medium">{totalItems === 0 ? 0 : startIdx + 1}</span>–
+                <span className="font-medium">{endIdx}</span> of{" "}
+                <span className="font-semibold">{totalItems}</span>
+              </div>
+
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 rounded-md border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  « Prev
+                </button>
+
+                {Array.from({ length: Math.max(1, totalPages) }).map((_, i) => {
+                  const n = i + 1;
+                  const active = n === page;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setPage(n)}
+                      className={`px-3 py-1.5 rounded-md border text-sm ${
+                        active
+                          ? "bg-gray-100 border-gray-300 text-gray-900 font-medium"
+                          : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 rounded-md border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next »
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </main>
 
@@ -445,9 +515,7 @@ export default function ManageFeature() {
             if (e.target === e.currentTarget) closeConfirm();
           }}
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/50 opacity-0 animate-[fadeIn_.2s_ease-out_forwards]" />
-          {/* Panel */}
           <div className="absolute inset-0 flex items-center justify-center px-4">
             <div className="w-full max-w-md rounded-lg bg-white shadow-lg border border-gray-200 opacity-0 translate-y-2 animate-[popIn_.22s_ease-out_forwards]">
               <div className="px-6 py-5">
@@ -503,7 +571,6 @@ export default function ManageFeature() {
         </div>
       )}
 
-      {/* animations */}
       <style>{`
         @keyframes fadeIn { to { opacity: 1 } }
         @keyframes popIn { to { opacity: 1; transform: translateY(0) } }
