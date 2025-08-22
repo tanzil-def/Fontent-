@@ -301,7 +301,7 @@ export default function Sidebar({ onSelect }) {
 
       {/* Course categories */}
       <div>
-        <h3 className="text-base font-semibold mb-2">Course categories</h3>
+        <h3 className="text-base font-semibold mb-2">Categories</h3>
 
         {/* OUTER CATEGORY LIST — mini, almost-hidden scrollbar (NO arrow buttons) */}
         <div
@@ -502,22 +502,22 @@ export default function Sidebar({ onSelect }) {
       {/* Footer Filter button (kept enabled as you asked) */}
       <div className="pt-1">
         <button
-          type="button"
-          onClick={() => {
+          // type="button"
+          // onClick={() => {
             // do your original behavior
-            if (activeSubcategory) {
-              setFilter({ type: "subcategory", value: activeSubcategory, parent: activeCategory });
-            } else if (activeCategory) {
-              const subs = categoryToSubs[activeCategory] || [];
-              setFilter({ type: "category", value: activeCategory, subcategories: subs });
-            }
+            // if (activeSubcategory) {
+            //   setFilter({ type: "subcategory", value: activeSubcategory, parent: activeCategory });
+            // } else if (activeCategory) {
+            //   const subs = categoryToSubs[activeCategory] || [];
+            //   setFilter({ type: "category", value: activeCategory, subcategories: subs });
+            // }
             // show popup with safe text + link (only if something was selected)
-            const text = selectionText();
-            if (text) {
-              const to = selectionLink();
-              showToast(text, to);
-            }
-          }}
+          //   const text = selectionText();
+          //   if (text) {
+          //     const to = selectionLink();
+          //     showToast(text, to);
+          //   }
+          // }}
           className="block mx-auto bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded px-5 py-2"
         >
           Filter
