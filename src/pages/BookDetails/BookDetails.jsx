@@ -1,5 +1,4 @@
-
-
+// BookDetails.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import {
@@ -81,11 +80,11 @@ export default function BookDetails() {
   const [pdTab, setPdTab] = useState("summary");
   const [pdExpanded, setPdExpanded] = useState(false);
 
-  // ===== Refs MUST appear before any early return (fixes hook-order error) =====
+  // ===== Refs =====
   const specRef = useRef(null);
   const readBoxRef = useRef(null);
   const audioRef = useRef(null);
-  const relRowRef = useRef(null); // <-- scroller ref for Related Books
+  const relRowRef = useRef(null);
 
   // Author follow modal/state
   const [showFollowModal, setShowFollowModal] = useState(false);
@@ -98,21 +97,13 @@ export default function BookDetails() {
   const [readStatus, setReadStatus] = useState("");
   const [toast, setToast] = useState({ open: false, msg: "" });
 
-  // EXPANDED review items
-  const [expanded, setExpanded] = useState({}); // {id: boolean}
+  // Reviews UI
+  const [expanded, setExpanded] = useState({});
+  const [votes, setVotes] = useState({});
+  const [bump, setBump] = useState({});
+  const [feedbackToast, setFeedbackToast] = useState({ open: false, type: "", msg: "" });
 
-  // Helpful/Not Helpful votes
-  const [votes, setVotes] = useState({}); // {id: {up, down, my}}
-  const [bump, setBump] = useState({}); // {id: {up:boolean, down:boolean}}
-
-  // NEW: Professional popup for helpful/unhelpful
-  const [feedbackToast, setFeedbackToast] = useState({
-    open: false,
-    type: "", // 'up' | 'down' | 'clear'
-    msg: "",
-  });
-
-  // ====== NEW: Audio player state ======
+  // Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
   const [curTime, setCurTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -133,7 +124,6 @@ export default function BookDetails() {
     return { intro, tail };
   };
 
-  // Accept many possible audio key names so you don't have to rename fields
   const pickAudio = (b) =>
     b?.audio || b?.audioSrc || b?.audioLink || b?.audio_clip || b?.audioURL || null;
 
@@ -174,21 +164,27 @@ export default function BookDetails() {
     return "available";
   };
 
+  // === Prefer the clicked book from router state ===
   useEffect(() => {
     const sliderBook = location.state?.fromSlider;
 
     fetch("/books.json")
       .then((res) => res.json())
       .then((data) => {
-        const found = data.find((b) => String(b.id) === String(id));
-        const active =
-          found ||
-          (sliderBook && String(sliderBook.id) === String(id) ? sliderBook : null);
+        let active = null;
+
+        if (sliderBook && String(sliderBook.id) === String(id)) {
+          active = sliderBook;
+        } else {
+          active = data.find((b) => String(b.id) === String(id)) || null;
+        }
 
         if (active) {
           const n = normalize(active);
           setBookData(n);
           setAuthorFollowers(n.authorFollowers);
+        } else {
+          setBookData(null);
         }
 
         const others = (data || [])
@@ -212,7 +208,7 @@ export default function BookDetails() {
       .catch(() => {});
   }, [id, location.state]);
 
-  // init votes when book changes (from your DB)
+  // init votes when book changes
   useEffect(() => {
     if (!bookData?.id) return;
     const p = REVIEWS_DB[String(bookData.id)];
@@ -362,13 +358,11 @@ export default function BookDetails() {
       : "No Reviews"
     : "No Reviews";
 
-  // compute per-book preview blocks
   const baseSummary = bookData.summary || "No summary available.";
   const introTail = makeIntroTail(baseSummary);
   const summaryIntro = bookData.summaryIntro ?? introTail.intro;
   const summaryTail = bookData.summaryTail ?? introTail.tail;
 
-  // helpers for the shelf options
   const shelfOptions = [
     { key: "want", label: "Want to read" },
     { key: "current", label: "Currently reading" },
@@ -429,7 +423,6 @@ export default function BookDetails() {
     vote._t = setTimeout(() => setFeedbackToast({ open: false, type: "", msg: "" }), 1700);
   };
 
-  // scroller controls for Related Books
   const scrollRel = (dir = 1) => {
     const node = relRowRef.current;
     if (!node) return;
@@ -451,7 +444,6 @@ export default function BookDetails() {
               className="w-full h-auto max-h-[460px] object-contain"
             />
           </div>
-
           {/* Want to read control (kept commented exactly as you had) */}
           {/* <div className="mt-3 w-[340px] max-w-full" ref={readBoxRef}> ... </div> */}
         </div>
@@ -493,7 +485,7 @@ export default function BookDetails() {
                 <button
                   onClick={() => {
                     setPdTab("summary");
-                    setPdExpanded(false);
+                    setPdExpanded(true); // auto-expand
                     specRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
                   className="ml-2 font-semibold hover:underline text-sky-600"
@@ -583,13 +575,20 @@ export default function BookDetails() {
           <div className="mt-6">
             <button
               onClick={() => {
-                const stored = JSON.parse(localStorage.getItem("borrowedBooks")) || [];
-                const alreadyExists = stored.find((b) => b.id === bookData.id);
-                if (!alreadyExists) {
-                  stored.push({ ...bookData, quantity: 1 });
-                  localStorage.setItem("borrowedBooks", JSON.stringify(stored));
-                }
-                navigate("/fill-up-form");
+                // Ensure the exact clicked book is what the form sees
+                const current = { ...bookData, quantity: 1 };
+
+                // 1) Put it at the FRONT of borrowedBooks (dedupe by id)
+                const list = JSON.parse(localStorage.getItem("borrowedBooks") || "[]")
+                  .filter((b) => String(b.id) !== String(current.id));
+                const next = [current, ...list];
+                localStorage.setItem("borrowedBooks", JSON.stringify(next));
+
+                // 2) Save a dedicated pointer for the form
+                localStorage.setItem("borrowNow", JSON.stringify(current));
+
+                // 3) Also pass via router state
+                navigate("/fill-up-form", { state: { borrowNow: current } });
               }}
               className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md w-full sm:w-auto block text-center"
             >
@@ -917,10 +916,9 @@ export default function BookDetails() {
           )}
         </div>
 
-        {/* ==== RELATED BOOKS (scroller like Recommended/Popular) ==== */}
+        {/* ==== RELATED BOOKS ==== */}
         <div className="lg:col-span-2">
           <div className="mt-10 rounded-lg border border-gray-300 overflow-hidden bg-white">
-            {/* Header with arrows */}
             <div className="px-4 sm:px-5 py-3 bg-white flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-800">Related Books</h3>
               <div className="hidden sm:flex gap-2">
@@ -942,11 +940,9 @@ export default function BookDetails() {
             </div>
 
             <div className="border-t border-gray-300 relative bg-white">
-              {/* edge fade masks */}
               <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-white to-transparent" />
               <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-white to-transparent" />
 
-              {/* Horizontal scroller */}
               <div
                 ref={relRowRef}
                 className="overflow-x-auto no-scrollbar touch-pan-x"
@@ -973,7 +969,6 @@ export default function BookDetails() {
                 </div>
               </div>
 
-              {/* mobile arrows overlay */}
               <div className="sm:hidden absolute inset-y-0 left-1 flex items-center">
                 <button
                   onClick={() => scrollRel(-1)}
@@ -997,100 +992,6 @@ export default function BookDetails() {
         </div>
       </div>
 
-      {/* ===== Follow modal (animated) ===== */}
-      {showFollowModal && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-100"
-            onClick={() => setShowFollowModal(false)}
-          />
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-300 p-5 animate-[pop_220ms_ease-out]">
-              <div className="flex items-start justify-between">
-                <h4 className="text-lg font-semibold">Follow Author</h4>
-                <button
-                  className="p-2 hover:bg-gray-100 rounded"
-                  onClick={() => setShowFollowModal(false)}
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <div className="mt-3 flex items-center gap-3">
-                <img
-                  src={bookData.authorPhoto}
-                  alt={bookData.authors}
-                  className="w-12 h-12 rounded-full object-cover border"
-                  loading="lazy"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">{bookData.authors}</div>
-                  <div className="text-xs text-gray-500">{authorFollowers} followers</div>
-                </div>
-              </div>
-
-              {!rolePicked ? (
-                <>
-                  <p className="mt-4 text-sm text-gray-700">
-                    Choose how you want to follow this author.
-                  </p>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setRolePicked("Client")}
-                      className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-semibold hover:border-sky-400 hover:bg-sky-50 transition"
-                    >
-                      Follow as Client
-                    </button>
-                    <button
-                      onClick={() => setRolePicked("Employee")}
-                      className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-semibold hover:border-sky-400 hover:bg-sky-50 transition"
-                    >
-                      Follow as Employee
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="mt-6 flex flex-col items-center text-center">
-                  <CheckCircle2 className="w-12 h-12 text-green-500 animate-bounce" />
-                  <div className="mt-2 font-semibold">Following as {rolePicked}</div>
-                  <div className="text-sm text-gray-600">
-                    You'll see updates from this author.
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6 flex justify-end gap-2">
-                {!rolePicked ? (
-                  <button
-                    onClick={() => setShowFollowModal(false)}
-                    className="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      if (!isFollowing) {
-                        setIsFollowing(true);
-                        setAuthorFollowers((c) => c + 1);
-                      }
-                      setTimeout(() => {
-                        setShowFollowModal(false);
-                        setRolePicked("");
-                      }, 1100);
-                    }}
-                    className="px-4 py-2 rounded-md bg-sky-500 text-white text-sm font-semibold hover:bg-sky-600"
-                  >
-                    Done
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Toast for shelf add */}
       {toast.open && (
         <div className="fixed left-1/2 bottom-8 -translate-x-1/2 z-[60] bg-green-600 text-white px-4 py-2 rounded-md shadow-lg animate-[toastPop_.22s_ease-out]">
@@ -1101,19 +1002,21 @@ export default function BookDetails() {
       {/* Helpful / Unhelpful popup */}
       {feedbackToast.open && (
         <div className="fixed bottom-8 right-6 z-[70] animate-[slideIn_.22s_ease-out]">
-          <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-3 w-[290px]">
+          <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-3 w/[290px]">
             <div className="flex items-start gap-3">
               <div
                 className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full
                 ${feedbackToast.type === "up" ? "bg-green-50 text-green-600" : feedbackToast.type === "down" ? "bg-rose-50 text-rose-600" : "bg-gray-50 text-gray-500"}`}
               >
-                {feedbackToast.type === "up" ? (
-                  <ThumbsUp className="w-4 h-4" />
-                ) : feedbackToast.type === "down" ? (
-                  <ThumbsDown className="w-4 h-4" />
-                ) : (
-                  <X className="w-4 h-4" />
-                )}
+                {
+                  feedbackToast.type === "up" ? (
+                    <ThumbsUp className="w-4 h-4" />
+                  ) : feedbackToast.type === "down" ? (
+                    <ThumbsDown className="w-4 h-4" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )
+                }
               </div>
               <div className="flex-1">
                 <div className="text-sm font-semibold text-gray-900">{feedbackToast.msg}</div>
@@ -1134,7 +1037,6 @@ export default function BookDetails() {
         </div>
       )}
 
-      {/* keyframes + utilities */}
       <style>{`
         @keyframes pop { 0% { transform: scale(.95); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
         @keyframes toastPop { 0% { transform: translate(-50%, 8px); opacity: 0 } 100% { transform: translate(-50%, 0); opacity: 1 } }
@@ -1148,8 +1050,3 @@ export default function BookDetails() {
     </div>
   );
 }
-
-
-
-
-
