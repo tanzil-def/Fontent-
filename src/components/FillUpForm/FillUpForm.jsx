@@ -1,11 +1,5 @@
-
-
-
-
-
-// FillUpForm.jsx
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { CalendarDays, Upload, Users, BookOpen, HelpCircle, LogOut } from "lucide-react";
 import Sidebar from "../Sidebar/Sidebar";
 
@@ -13,13 +7,21 @@ export default function FillUpForm() {
   const [borrowedBooks, setBorrowedBooks] = useState([]);
   const [formData, setFormData] = useState({});
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const books = JSON.parse(localStorage.getItem("borrowedBooks")) || [];
-    // Show ONLY the most recently added book in the form
-    const lastOnly = books.length ? [books[books.length - 1]] : [];
-    setBorrowedBooks(lastOnly);
-  }, []);
+    const fromState = location.state?.borrowNow || location.state?.book || null;
+    const fromKey = JSON.parse(localStorage.getItem("borrowNow") || "null");
+
+    // Priority: router state > dedicated key > most recently added list item
+    const chosen =
+      fromState ||
+      fromKey ||
+      (books.length ? books[0] : null); // books[0] because we now place newest at front
+
+    setBorrowedBooks(chosen ? [chosen] : []);
+  }, [location.state]);
 
   // Helper: compute whole-day difference from TODAY (local) to the selected return date.
   const calcBorrowDays = (returnDateStr) => {
@@ -36,7 +38,6 @@ export default function FillUpForm() {
   const handleChange = (e, bookId) => {
     const { name, value } = e.target;
 
-    // When Return Date changes, auto-calc Borrowing Days (no input field for days)
     if (name === "returnDate") {
       const autoDays = calcBorrowDays(value);
       setFormData((prev) => ({
@@ -44,13 +45,12 @@ export default function FillUpForm() {
         [bookId]: {
           ...prev[bookId],
           returnDate: value,
-          days: autoDays, // store computed value for submit
+          days: autoDays,
         },
       }));
       return;
     }
 
-    // Other fields (e.g., Booked Timeline comments)
     setFormData((prev) => ({
       ...prev,
       [bookId]: {
@@ -63,7 +63,6 @@ export default function FillUpForm() {
   const handleSubmit = () => {
     console.log("Submitted Data:", formData);
     alert("Form submitted successfully!");
-    // go directly to the user dashboard after success
     navigate("/dashboard");
   };
 
@@ -71,48 +70,6 @@ export default function FillUpForm() {
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
       <Sidebar />
-      {/* <aside className="w-64 bg-white shadow-md px-4 py-6 flex flex-col justify-between">
-        <div>
-          <h2 className="text-xl font-bold mb-6">Library</h2>
-          <ul className="space-y-3">
-            <li>
-              <a href="/dashboard" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 hover:underline underline-offset-4">
-                <CalendarDays size={18} /> Dashboard
-              </a>
-            </li> */}
-            {/* <li>
-              <a href="/upload" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 hover:underline underline-offset-4">
-                <Upload size={18} /> Upload Books
-              </a>
-            </li> */}
-            {/* <li>
-              <a href="/fillup-form" className="flex items-center gap-2 text-sky-600 font-medium">
-                <BookOpen size={18} /> Fill Up Form
-              </a>
-            </li>
-            <li>
-              <a href="/members" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 hover:underline underline-offset-4">
-                <Users size={18} /> Member
-              </a>
-            </li>
-            <li>
-              <a href="/checkout" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 hover:underline underline-offset-4">
-                <BookOpen size={18} /> Check-out Books
-              </a>
-            </li>
-            <li>
-              <a href="/help" className="flex items-center gap-2 text-gray-700 hover:text-sky-500 hover:underline underline-offset-4">
-                <HelpCircle size={18} /> Settings
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <a href="/logout" className="flex items-center gap-2 text-red-600 font-medium hover:underline underline-offset-4">
-            <LogOut size={18} /> Logout
-          </a>
-        </div>
-      </aside> */}
 
       {/* Main Content */}
       <main className="flex-1 p-8">
@@ -147,7 +104,7 @@ export default function FillUpForm() {
 
                   {/* Form fields */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Borrowing Days: NO INPUT — auto-counted and displayed read-only */}
+                    {/* Borrowing Days: read-only (auto) */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Borrowing Days
@@ -157,7 +114,7 @@ export default function FillUpForm() {
                       </div>
                     </div>
 
-                    {/* Return Date (select this; days auto-calc) */}
+                    {/* Return Date */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Return Date
@@ -171,7 +128,7 @@ export default function FillUpForm() {
                       />
                     </div>
 
-                    {/* Booked Timeline — comments (unchanged design) */}
+                    {/* Booked Timeline — comments (optional, left as comment as in your code) */}
                     {/* <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Booked Timeline
