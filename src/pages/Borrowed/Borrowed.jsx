@@ -62,6 +62,8 @@ export default function Borrowed() {
     );
   }
 
+  const selected = borrowedBooks[0];
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Borrowed Books</h2>
@@ -132,14 +134,16 @@ export default function Borrowed() {
 
       {/* Checkout button */}
       <div className="mt-8 text-center">
-       <Link
-  to="/fill-up-form"
-  state={{ book: borrowedBooks[0] }} // Send the first book or modify to send all
-  className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md inline-block mt-8 text-center"
->
-  Fill Up The Form
-</Link>
-
+        <Link
+          to="/fill-up-form"
+          state={{ borrowNow: selected }}
+          onClick={() =>
+            localStorage.setItem("borrowNow", JSON.stringify(selected))
+          }
+          className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md inline-block mt-8 text-center"
+        >
+          Fill Up The Form
+        </Link>
       </div>
     </div>
   );
