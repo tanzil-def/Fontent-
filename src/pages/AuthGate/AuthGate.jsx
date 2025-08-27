@@ -7,7 +7,7 @@ export default function AuthGate() {
   const navigate = useNavigate();
 
   const handleLogin = () => {
-    navigate("/login");
+    navigate("/");
   };
 
   return (
