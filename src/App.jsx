@@ -21,6 +21,8 @@ import UserHistory from './pages/UserHistory/UserHistory';
 import AdminSettings from './pages/AdminSettings/AdminSettings';
 import ManageFeature from './pages/ManageFeature/ManageFeature';
 import DonationRequest from './pages/DonationRequest/DonationRequest';
+import { AuthProvider } from './Providers/AuthProvider';
+import AuthGate from './pages/AuthGate/AuthGate';
 
 
 function App() {
@@ -46,6 +48,8 @@ function App() {
                     <Route path="/setting" element={<AdminSettings/>} />
                     <Route path="/manage-feature" element={<ManageFeature />} />
                     <Route path="/donation-request" element={<DonationRequest />} />
+                                        <Route path="/authgate" element={<AuthGate />} />
+
 
 
                     
