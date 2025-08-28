@@ -23,6 +23,7 @@ import ManageFeature from './pages/ManageFeature/ManageFeature';
 import DonationRequest from './pages/DonationRequest/DonationRequest';
 import { AuthProvider } from './Providers/AuthProvider';
 import AuthGate from './pages/AuthGate/AuthGate';
+import CalendarPage from './pages/Calendar/CalendarPage';
 
 
 function App() {
@@ -49,6 +50,8 @@ function App() {
                     <Route path="/manage-feature" element={<ManageFeature />} />
                     <Route path="/donation-request" element={<DonationRequest />} />
                                         <Route path="/authgate" element={<AuthGate />} />
+<Route path="/calendar" element={<CalendarPage />} />
+
 
 
 
