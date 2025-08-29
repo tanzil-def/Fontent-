@@ -6,7 +6,7 @@ import {
   Upload,
   UserCircle,
   X,
-  GraduationCap, // kept (safe to keep even if used inside component)
+  GraduationCap, 
   Home,
   BookOpen,
   Calendar,
@@ -14,7 +14,7 @@ import {
 import { CgMenuGridR } from "react-icons/cg";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
-import AppLauncherMenu from "./AppLauncherMenu"; // ← NEW
+import AppLauncherMenu from "./AppLauncherMenu"; 
 
 export default function Navbar() {
   const navigate = useNavigate();
