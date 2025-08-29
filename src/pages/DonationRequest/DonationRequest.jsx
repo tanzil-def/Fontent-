@@ -7,26 +7,109 @@ import {
   Clock,
   Search,
   Filter,
-  ChevronLeft,
-  ChevronRight,
+  ChevronLeft,   // top 2-page view switcher
+  ChevronRight,  // top 2-page view switcher
+  AlertTriangle,
 } from "lucide-react";
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
+import Pagination from "../../components/Pagination/Pagination";
 
 // ---- LocalStorage key ----
 const LS_KEY = "donation_requests_v1";
 
+// Page size for all paginated tables
+const PAGE_SIZE = 8;
+
 // ---- Seed data if LS is empty (demo) ----
 const SEED = [
-  { id: "DR-1001", donorName: "Mahin Hasan", email: "mahin@example.com", amount: 2000, bookTitle: "JavaScript and jQuery", note: "For student program", createdAt: "2025-08-10T09:22:00Z", status: "pending" },
-  { id: "DR-1002", donorName: "Farhana Akter", email: "farhana@example.com", amount: 1200, bookTitle: "Entrepreneurship", note: "", createdAt: "2025-08-12T12:05:00Z", status: "pending" },
-  { id: "DR-1003", donorName: "Rakibul Islam", email: "rakibul@example.com", amount: 600, bookTitle: "Cloud Computing", note: "Small library", createdAt: "2025-08-14T15:50:00Z", status: "accepted" },
-  { id: "DR-1004", donorName: "Sumaiya Noor", email: "sumaiya@example.com", amount: 900, bookTitle: "HTML & CSS", note: "", createdAt: "2025-08-15T18:30:00Z", status: "rejected" },
+  { id: "DR-1001", donorName: "Mahin Hasan", author: "Jon Duckett", email: "mahin@example.com", amount: 2000, bookTitle: "JavaScript and jQuery", note: "For student program", createdAt: "2025-08-10T09:22:00Z", status: "pending" },
+  { id: "DR-1002", donorName: "Farhana Akter", author: "Alain Fayolle", email: "farhana@example.com", amount: 1200, bookTitle: "Entrepreneurship", note: "", createdAt: "2025-08-12T12:05:00Z", status: "pending" },
+  { id: "DR-1003", donorName: "Rakibul Islam", author: "Thomas Erl", email: "rakibul@example.com", amount: 600, bookTitle: "Cloud Computing", note: "Small library", createdAt: "2025-08-14T15:50:00Z", status: "accepted" },
+  { id: "DR-1004", donorName: "Sumaiya Noor", author: "Jon Duckett", email: "sumaiya@example.com", amount: 900, bookTitle: "HTML & CSS", note: "", createdAt: "2025-08-15T18:30:00Z", status: "rejected" },
 ];
 
 function fmtDate(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
+}
+
+/** Ensure each item has BSID and Author field */
+function attachUserIdsAndAuthor(items) {
+  let idx = 1;
+  return items.map((it) => {
+    const userId = it.userId && /^BS\d{4}$/i.test(it.userId)
+      ? it.userId
+      : `BS${String(idx++).padStart(4, "0")}`;
+    return { author: it.author || "Unknown Author", ...it, userId };
+  });
+}
+
+/** Pagination helpers */
+function paginate(rows, page, pageSize) {
+  const start = (page - 1) * pageSize;
+  return rows.slice(start, start + pageSize);
+}
+function totalPages(rows, pageSize) {
+  return Math.max(1, Math.ceil(rows.length / pageSize));
+}
+
+/** Filter bar component */
+function StatusFilterBar({
+  query, setQuery,
+  bsQuery, setBsQuery,
+  statusFilter, setStatusFilter,
+  bsInvalid,
+}) {
+  return (
+    <section className="bg-white rounded-lg shadow border border-gray-300">
+      <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+        {/* General search: donor, author, book (no ID here) */}
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by donor, author, or book"
+            className="w-64 md:w-80 rounded border border-gray-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+          />
+        </div>
+
+        {/* BSID search (separate) */}
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+          <input
+            value={bsQuery}
+            onChange={(e) => setBsQuery(e.target.value)}
+            placeholder="Search by BSID (e.g., BS0001)"
+            className={`w-56 md:w-64 rounded border pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+              bsInvalid ? "border-rose-300 focus:ring-rose-300" : "border-gray-300 focus:ring-sky-400"
+            }`}
+          />
+        </div>
+        {bsInvalid && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600">
+            <AlertTriangle size={14} /> Unknown user (use format: <strong>BS0000</strong>)
+          </span>
+        )}
+
+        {/* Status select */}
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-gray-500" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export default function DonationRequest() {
@@ -44,10 +127,12 @@ export default function DonationRequest() {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        setItems(Array.isArray(parsed.items) ? parsed.items : []);
+        const withFixes = attachUserIdsAndAuthor(Array.isArray(parsed.items) ? parsed.items : []);
+        setItems(withFixes);
         setHistory(Array.isArray(parsed.history) ? parsed.history : []);
+        localStorage.setItem(LS_KEY, JSON.stringify({ items: withFixes, history: parsed.history || [] }));
       } else {
-        const seeded = SEED;
+        const seeded = attachUserIdsAndAuthor(SEED);
         const initialHistory = seeded
           .filter((it) => it.status !== "pending")
           .map((it, idx) => ({
@@ -64,9 +149,9 @@ export default function DonationRequest() {
         setHistory(initialHistory);
       }
     } catch {
-      // Fallback to seed on parse error
-      localStorage.setItem(LS_KEY, JSON.stringify({ items: SEED, history: [] }));
-      setItems(SEED);
+      const seeded = attachUserIdsAndAuthor(SEED);
+      localStorage.setItem(LS_KEY, JSON.stringify({ items: seeded, history: [] }));
+      setItems(seeded);
       setHistory([]);
     }
   }, []);
@@ -77,7 +162,8 @@ export default function DonationRequest() {
       if (e.key === LS_KEY && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          setItems(Array.isArray(parsed.items) ? parsed.items : []);
+          const withFixes = attachUserIdsAndAuthor(Array.isArray(parsed.items) ? parsed.items : []);
+          setItems(withFixes);
           setHistory(Array.isArray(parsed.history) ? parsed.history : []);
         } catch {}
       }
@@ -95,9 +181,25 @@ export default function DonationRequest() {
   // ---------- UI state ----------
   const [page, setPage] = useState(1); // 1 = overview, 2 = full history
   const [query, setQuery] = useState("");
+  const [bsQuery, setBsQuery] = useState(""); // BSID search (BS####)
   const [statusFilter, setStatusFilter] = useState("all"); // all | pending | accepted | rejected
 
-  // ---------- Toast (animated popup) ----------
+  // Table page states
+  const [pendingPage, setPendingPage] = useState(1);
+  const [collectedPage, setCollectedPage] = useState(1);
+  const [rejectedPage, setRejectedPage] = useState(1); // used only when unified rejected
+  const [unifiedPage, setUnifiedPage] = useState(1);
+  const [historyTablePage, setHistoryTablePage] = useState(1);
+
+  // Reset table pages when filters/search change
+  useEffect(() => {
+    setPendingPage(1);
+    setCollectedPage(1);
+    setRejectedPage(1);
+    setUnifiedPage(1);
+  }, [query, bsQuery, statusFilter]);
+
+  // ---------- Toast ----------
   const [toast, setToast] = useState({ open: false, type: "accepted", msg: "" });
   const showToast = (type, msg) => {
     setToast({ open: true, type, msg });
@@ -106,64 +208,67 @@ export default function DonationRequest() {
   };
 
   // ---------- Derived ----------
+  const bsTrim = bsQuery.trim();
+  const bsValid = bsTrim === "" || /^BS\d{4}$/i.test(bsTrim);
+  const bsInvalid = bsTrim !== "" && !bsValid;
+
   const filtered = useMemo(() => {
+    // BSID search is authoritative when present
+    if (bsTrim) {
+      if (!/^BS\d{4}$/i.test(bsTrim)) return [];
+      const target = bsTrim.toUpperCase();
+      const sub = items.filter((it) => (it.userId || "").toUpperCase() === target);
+      return statusFilter === "all" ? sub : sub.filter((it) => it.status === statusFilter);
+    }
+
+    // General search: donor, author, book title, note, email (NO id/amount)
     const q = query.trim().toLowerCase();
     return items.filter((it) => {
       const matchQ =
         !q ||
         it.donorName.toLowerCase().includes(q) ||
-        it.email.toLowerCase().includes(q) ||
+        (it.author || "").toLowerCase().includes(q) ||
         it.bookTitle.toLowerCase().includes(q) ||
-        String(it.amount).includes(q) ||
-        it.id.toLowerCase().includes(q);
+        (it.note || "").toLowerCase().includes(q) ||
+        it.email.toLowerCase().includes(q);
       const matchS = statusFilter === "all" ? true : it.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [items, query, statusFilter]);
+  }, [items, query, statusFilter, bsTrim]);
 
-  const pending = filtered.filter((x) => x.status === "pending");
-  const accepted = filtered.filter((x) => x.status === "accepted");
-  const rejected = filtered.filter((x) => x.status === "rejected");
+  const pendingRows = filtered.filter((x) => x.status === "pending");
+  const acceptedRows = filtered.filter((x) => x.status === "accepted");
+  const rejectedRows = filtered.filter((x) => x.status === "rejected");
 
-  const totalAccepted = items.filter((x) => x.status === "accepted").length;
+  // Correct counters (not affected by filtering)
+  const totalPending = items.filter((x) => x.status === "pending").length;
+  const totalAccepted = items.filter((x) => x.status === "accepted").length; // Collected
   const totalRejected = items.filter((x) => x.status === "rejected").length;
 
-  // ---------- Actions (Accept/Reject) with persistent history ----------
+  // ---------- Actions ----------
   const actOn = (id, action) => {
     if (action !== "accepted" && action !== "rejected") return;
-
     const src = items.find((x) => x.id === id);
-    // Update item status
-    const nextItems = items.map((it) =>
-      it.id === id ? { ...it, status: action } : it
-    );
 
-    // Log to history
+    const nextItems = items.map((it) => (it.id === id ? { ...it, status: action } : it));
     const entry = src
       ? {
-          id: `${id}-${Date.now()}`, // unique
+          id: `${id}-${Date.now()}`,
           requestId: id,
-          action,                    // accepted | rejected
+          action,
           at: new Date().toISOString(),
           amount: src.amount,
           donorName: src.donorName,
           bookTitle: src.bookTitle,
         }
       : null;
-
     const nextHistory = entry ? [entry, ...history] : history;
 
-    // Persist to LS so a page refresh shows the new history
     persist(nextItems, nextHistory);
 
-    // Animated toast
-    showToast(
-      action,
-      `${action === "accepted" ? "Accepted" : "Rejected"}: ${src?.donorName || "Request"}`
-    );
-
-    // Optional UX: jump to History page after decision
+    showToast(action, `${action === "accepted" ? "Accepted" : "Rejected"}: ${src?.donorName || "Request"}`);
     setPage(2);
+    setHistoryTablePage(1);
   };
 
   // ---------- Small UI components ----------
@@ -187,8 +292,8 @@ export default function DonationRequest() {
     </div>
   );
 
-  // NOTE: Columns trimmed per your request (no email, amount, date; SL # instead of ID)
-  const Table = ({ rows, showActions }) => (
+  // Table
+  const Table = ({ rows, showActions, pageForCalc }) => (
     <div className="overflow-x-hidden overflow-y-hidden no-scrollbar rounded-lg border border-gray-300">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-gray-700 border-b border-gray-300">
@@ -210,10 +315,18 @@ export default function DonationRequest() {
           ) : (
             rows.map((r, idx) => (
               <tr key={r.id} className="border-t border-gray-300">
-                <td className="px-4 py-2 font-medium">{idx + 1}</td>
-                <td className="px-4 py-2">{r.donorName}</td>
+                <td className="px-4 py-2 font-medium">
+                  {idx + 1 + (pageForCalc - 1) * PAGE_SIZE}
+                </td>
+                <td className="px-4 py-2">
+                  <div className="font-medium">{r.donorName}</div>
+                  {r.userId && <div className="text-[11px] text-gray-500 mt-0.5">BSID: {r.userId}</div>}
+                </td>
                 <td className="px-4 py-2">
                   <div className="font-medium">{r.bookTitle}</div>
+                  <div className="text-xs text-gray-500">
+                    Author: {r.author || "Unknown Author"}
+                  </div>
                   {r.note && <div className="text-xs text-gray-500">{r.note}</div>}
                 </td>
                 <td className="px-4 py-2">
@@ -234,7 +347,7 @@ export default function DonationRequest() {
                     ) : (
                       <Clock size={14} />
                     )}
-                    {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                    {r.status === "accepted" ? "Collected" : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                   </span>
                 </td>
                 {showActions && (
@@ -263,8 +376,8 @@ export default function DonationRequest() {
     </div>
   );
 
-  // History page — trimmed columns (no date/email/amount), shows Serial No #
-  const HistoryTable = ({ rows }) => (
+  // History page table
+  const HistoryTable = ({ rows, pageForCalc }) => (
     <div className="overflow-x-hidden overflow-y-hidden no-scrollbar rounded-lg border border-gray-300">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-gray-700 border-b border-gray-300">
@@ -285,7 +398,9 @@ export default function DonationRequest() {
           ) : (
             rows.map((h, idx) => (
               <tr key={h.id} className="border-t border-gray-300">
-                <td className="px-4 py-2 font-medium">{idx + 1}</td>
+                <td className="px-4 py-2 font-medium">
+                  {idx + 1 + (pageForCalc - 1) * PAGE_SIZE}
+                </td>
                 <td className="px-4 py-2">{h.donorName}</td>
                 <td className="px-4 py-2">{h.bookTitle}</td>
                 <td className="px-4 py-2">
@@ -298,7 +413,7 @@ export default function DonationRequest() {
                       }`}
                   >
                     {h.action === "accepted" ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-                    {h.action.charAt(0).toUpperCase() + h.action.slice(1)}
+                    {h.action === "accepted" ? "Collected" : "Rejected"}
                   </span>
                 </td>
               </tr>
@@ -308,6 +423,39 @@ export default function DonationRequest() {
       </table>
     </div>
   );
+
+  // Unified table conditions:
+  const showUnifiedTable = page === 1 && (statusFilter !== "all" || bsTrim.length > 0);
+
+  // Unified rows & pages
+  const unifiedRows = useMemo(() => {
+    if (bsTrim) return filtered;
+    if (statusFilter === "all") return filtered;
+    return filtered.filter((it) => it.status === statusFilter);
+  }, [filtered, statusFilter, bsTrim]);
+  const unifiedTotalPages = totalPages(unifiedRows, PAGE_SIZE);
+  const unifiedSlice = paginate(unifiedRows, unifiedPage, PAGE_SIZE);
+
+  const unifiedHeading = (() => {
+    if (bsTrim) return "Search Results";
+    if (statusFilter === "accepted") return "Collected";
+    return statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1);
+  })();
+
+  // Default-page slices
+  const pendingTotalPages = totalPages(pendingRows, PAGE_SIZE);
+  const pendingSlice = paginate(pendingRows, pendingPage, PAGE_SIZE);
+
+  const collectedTotalPages = totalPages(acceptedRows, PAGE_SIZE);
+  const collectedSlice = paginate(acceptedRows, collectedPage, PAGE_SIZE);
+
+  // Rejected slice (only used when unified rejected is showing)
+  const rejectedTotalPages = totalPages(rejectedRows, PAGE_SIZE);
+  const rejectedSlice = paginate(rejectedRows, rejectedPage, PAGE_SIZE);
+
+  // History slices
+  const historyTotalPages = totalPages(history, PAGE_SIZE);
+  const historySlice = paginate(history, historyTablePage, PAGE_SIZE);
 
   return (
     <div className="min-h-screen flex bg-gray-100 overflow-hidden">
@@ -324,7 +472,7 @@ export default function DonationRequest() {
             </p>
           </div>
 
-          {/* Simple 2-page pagination */}
+          {/* Simple 2-page pagination (view switcher) */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -343,76 +491,86 @@ export default function DonationRequest() {
         </div>
 
         {/* Filters */}
-        <section className="bg-white rounded-lg shadow border border-gray-300">
-          <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by donor, book or ID"
-                className="w-64 md:w-80 rounded border border-gray-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Filter size={16} className="text-gray-500" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-              >
-                <option value="all">All statuses</option>
-                <option value="pending">Pending</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-          </div>
-        </section>
+        <StatusFilterBar
+          query={query}
+          setQuery={setQuery}
+          bsQuery={bsQuery}
+          setBsQuery={setBsQuery}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          bsInvalid={bsInvalid}
+        />
 
         {page === 1 ? (
           <>
-            {/* Stats */}
+            {/* Stats (Accepted renamed to Collected) */}
             <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <StatCard icon={<Clock size={18} />} label="Pending" value={pending.length} />
-              <StatCard icon={<CheckCircle2 size={18} />} label="Accepted" value={totalAccepted} tone="green" />
+              <StatCard icon={<Clock size={18} />} label="Pending" value={totalPending} />
+              <StatCard icon={<CheckCircle2 size={18} />} label="Collected" value={totalAccepted} tone="green" />
               <StatCard icon={<XCircle size={18} />} label="Rejected" value={totalRejected} tone="rose" />
             </section>
 
-            {/* Pending (Accept/Reject) */}
-            <section className="bg-white rounded-lg shadow border border-gray-300 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-300">
-                <h3 className="text-sm font-semibold text-gray-800">Pending Requests</h3>
-              </div>
-              <div className="p-4">
-                <Table rows={pending} showActions />
-              </div>
-            </section>
-
-            {/* Accepted / Rejected (read-only) */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {showUnifiedTable ? (
+              // One table when filtering by status or using BSID
               <section className="bg-white rounded-lg shadow border border-gray-300 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-300">
-                  <h3 className="text-sm font-semibold text-gray-800">Accepted</h3>
+                  <h3 className="text-sm font-semibold text-gray-800">{unifiedHeading}</h3>
                 </div>
                 <div className="p-4">
-                  <Table rows={accepted} showActions={false} />
+                  <Table
+                    rows={
+                      statusFilter === "rejected" && !bsTrim
+                        ? rejectedSlice
+                        : unifiedSlice
+                    }
+                    showActions={statusFilter === "pending" && !bsTrim ? true : statusFilter === "pending"}
+                    pageForCalc={unifiedPage}
+                  />
+                  <Pagination
+                    page={unifiedPage}
+                    setPage={setUnifiedPage}
+                    totalItems={statusFilter === "rejected" && !bsTrim ? rejectedRows.length : unifiedRows.length}
+                    pageSize={PAGE_SIZE}
+                  />
                 </div>
               </section>
+            ) : (
+              // Default view: ONLY Pending + Collected (each paginated)
+              <>
+                <section className="bg-white rounded-lg shadow border border-gray-300 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-300">
+                    <h3 className="text-sm font-semibold text-gray-800">Pending Requests</h3>
+                  </div>
+                  <div className="p-4">
+                    <Table rows={pendingSlice} showActions pageForCalc={pendingPage} />
+                    <Pagination
+                      page={pendingPage}
+                      setPage={setPendingPage}
+                      totalItems={pendingRows.length}
+                      pageSize={PAGE_SIZE}
+                    />
+                  </div>
+                </section>
 
-              <section className="bg-white rounded-lg shadow border border-gray-300 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-300">
-                  <h3 className="text-sm font-semibold text-gray-800">Rejected</h3>
-                </div>
-                <div className="p-4">
-                  <Table rows={rejected} showActions={false} />
-                </div>
-              </section>
-            </div>
+                <section className="bg-white rounded-lg shadow border border-gray-300 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-300">
+                    <h3 className="text-sm font-semibold text-gray-800">Collected</h3>
+                  </div>
+                  <div className="p-4">
+                    <Table rows={collectedSlice} showActions={false} pageForCalc={collectedPage} />
+                    <Pagination
+                      page={collectedPage}
+                      setPage={setCollectedPage}
+                      totalItems={acceptedRows.length}
+                      pageSize={PAGE_SIZE}
+                    />
+                  </div>
+                </section>
+              </>
+            )}
           </>
         ) : (
-          // Page 2: Full History (persists on refresh)
+          // Page 2: Full History (paginated)
           <section className="bg-white rounded-lg shadow border border-gray-300 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-300">
               <h3 className="text-sm font-semibold text-gray-800">Full History (Accepted & Rejected)</h3>
@@ -421,13 +579,19 @@ export default function DonationRequest() {
               </p>
             </div>
             <div className="p-4">
-              <HistoryTable rows={history} />
+              <HistoryTable rows={historySlice} pageForCalc={historyTablePage} />
+              <Pagination
+                page={historyTablePage}
+                setPage={setHistoryTablePage}
+                totalItems={history.length}
+                pageSize={PAGE_SIZE}
+              />
             </div>
           </section>
         )}
       </main>
 
-      {/* Animated Toast (Professional) */}
+      {/* Toast */}
       {toast.open && (
         <div className="fixed bottom-6 right-6 z-[60] animate-[toastIn_.22s_ease-out]">
           <div className="bg-white border border-gray-300 shadow-xl rounded-xl p-4 w-[300px]">
@@ -440,9 +604,7 @@ export default function DonationRequest() {
                 {toast.type === "accepted" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
               </div>
               <div className="flex-1">
-                <div className="text-sm font-semibold text-gray-900">
-                  {toast.msg}
-                </div>
+                <div className="text-sm font-semibold text-gray-900">{toast.msg}</div>
                 <div className="text-xs text-gray-600">Action recorded in history.</div>
               </div>
             </div>
@@ -453,7 +615,7 @@ export default function DonationRequest() {
         </div>
       )}
 
-      {/* Styles: no-scrollbar + animations */}
+      {/* Styles */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
