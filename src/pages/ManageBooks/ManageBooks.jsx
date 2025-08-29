@@ -1,13 +1,6 @@
 // src/pages/ManageBooks/ManageBooks.jsx
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
 import {
-  CalendarDays,
-  Upload,
-  Users,
-  BookOpen,
-  HelpCircle,
-  LogOut,
   Layers,
   Plus,
   Pencil,
@@ -16,13 +9,17 @@ import {
   Loader2,
   FileText,
   FileAudio2,
-  CheckCircle2, // NEW
+  CheckCircle2,
+  Search,
+  Filter as FilterIcon,
 } from "lucide-react";
 
 import sectionedBooks from "../../data/sampleBooks";
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
+import Pagination from "../../components/Pagination/Pagination";
 
 const PLACEHOLDER_IMG = "https://dummyimage.com/80x80/e5e7eb/9ca3af&text=📘";
+const PAGE_SIZE = 6; // paginate after 6 books
 
 // ---------- helpers ----------
 function toYMD(dateStr) {
@@ -65,8 +62,74 @@ function normalizeFromJson(item) {
   };
 }
 
-const withCurrent = (arr, curr) =>
-  Array.from(new Set([...(curr ? [curr] : []), ...arr]));
+// ---------- Filter Bar COMPONENT ----------
+function FilterBarBooks({
+  queryTitle,
+  setQueryTitle,
+  filterAuthor,
+  setFilterAuthor,
+  filterCategory,
+  setFilterCategory,
+  authors,
+  categories,
+  onReset,
+}) {
+  return (
+    <section className="bg-white rounded-lg shadow border border-gray-200">
+      <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+        {/* Book name search */}
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+          <input
+            value={queryTitle}
+            onChange={(e) => setQueryTitle(e.target.value)}
+            placeholder="Search by book name"
+            className="w-64 md:w-80 rounded border border-gray-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+          />
+        </div>
+
+        {/* Author select */}
+        <div className="flex items-center gap-2">
+          <FilterIcon size={16} className="text-gray-500" />
+          <select
+            value={filterAuthor}
+            onChange={(e) => setFilterAuthor(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            <option value="all">All authors</option>
+            {authors.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Category select */}
+        <div className="flex items-center gap-2">
+          <Layers size={16} className="text-gray-500" />
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            <option value="all">All categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Reset */}
+        <button
+          type="button"
+          onClick={onReset}
+          className="ml-auto inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 shadow hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+        >
+          Reset filters
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export default function ManageBooks() {
   useEffect(() => {
@@ -121,20 +184,16 @@ export default function ManageBooks() {
   const [displayed, setDisplayed] = useState([]);
   useEffect(() => setDisplayed(baseBooks), [baseBooks]);
 
-  // --------- Add/Edit modal state ----------
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [mode, setMode] = useState("create"); // 'create' | 'edit'
-  const [editingIndex, setEditingIndex] = useState(-1);
+  // --------- FILTER STATE ----------
+  const [queryTitle, setQueryTitle] = useState("");
+  const [filterAuthor, setFilterAuthor] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
 
-  // --------- Delete confirmation modal state ----------
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDeleteIndex, setPendingDeleteIndex] = useState(-1);
-
+  // options reflect the current displayed list
   const options = useMemo(() => {
     const authors = new Set();
     const categories = new Set();
-    baseBooks.forEach((b) => {
+    displayed.forEach((b) => {
       if (b.author && b.author !== "—") authors.add(b.author);
       if (b.category && b.category !== "—") categories.add(b.category);
     });
@@ -142,9 +201,48 @@ export default function ManageBooks() {
       authors: Array.from(authors).sort(),
       categories: Array.from(categories).sort(),
     };
-  }, [baseBooks]);
+  }, [displayed]);
 
-  // ------------ FORM (ordered fields) ------------
+  const clearFilters = () => {
+    setQueryTitle("");
+    setFilterAuthor("all");
+    setFilterCategory("all");
+  };
+
+  // FILTERED ROWS
+  const filteredRows = useMemo(() => {
+    const q = queryTitle.trim().toLowerCase();
+    return displayed.filter((b) => {
+      const byTitle = !q || (b.title || "").toLowerCase().includes(q);
+      const byAuthor = filterAuthor === "all" || b.author === filterAuthor;
+      const byCategory = filterCategory === "all" || b.category === filterCategory;
+      return byTitle && byAuthor && byCategory;
+    });
+  }, [displayed, queryTitle, filterAuthor, filterCategory]);
+
+  // ---------- pagination for table (6 per page) ----------
+  const [tablePage, setTablePage] = useState(1);
+  const pageRows = useMemo(() => {
+    const start = (tablePage - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, tablePage]);
+
+  // reset to page 1 when filters/data change
+  useEffect(() => {
+    setTablePage(1);
+  }, [queryTitle, filterAuthor, filterCategory, displayed.length]);
+
+  // --------- Add/Edit modal state ----------
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState("create"); // 'create' | 'edit'
+  const [editingIndex, setEditingIndex] = useState(-1); // index within 'displayed'
+
+  // --------- Delete confirmation modal state ----------
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+
+  // ------------ FORM ------------
   const emptyForm = {
     title: "",
     author: "",
@@ -188,10 +286,13 @@ export default function ManageBooks() {
     setOpen(true);
   };
 
-  const onOpenEdit = (row, index) => {
+  // Accept row object (even from filtered/paged list) and resolve to its index inside 'displayed'
+  const onOpenEdit = (row) => {
+    const idx = displayed.findIndex((x) => x.id === row.id);
+    if (idx === -1) return;
     setMode("edit");
-    setEditingIndex(index);
-    setForm(rowToForm(row));
+    setEditingIndex(idx);
+    setForm(rowToForm(displayed[idx]));
     setOpen(true);
   };
 
@@ -250,10 +351,10 @@ export default function ManageBooks() {
     }
   };
 
-  // NEW: Upload popup
+  // Upload popup (unused UI left as-is)
   const [uploadOpen, setUploadOpen] = useState(false);
 
-  // NEW: 2s "Saved" toast
+  // 2s "Saved" toast
   const [savedToast, setSavedToast] = useState(false);
 
   const handleSave = async () => {
@@ -303,15 +404,15 @@ export default function ManageBooks() {
     setTimeout(() => setSavedToast(false), 2000);
   };
 
-  const requestDelete = (index) => {
-    setPendingDeleteIndex(index);
+  const requestDelete = (id) => {
+    setPendingDeleteId(id);
     setConfirmOpen(true);
   };
 
   const confirmDelete = () => {
-    if (pendingDeleteIndex < 0) return;
-    setDisplayed((prev) => prev.filter((_, i) => i !== pendingDeleteIndex));
-    setPendingDeleteIndex(-1);
+    if (!pendingDeleteId) return;
+    setDisplayed((prev) => prev.filter((x) => x.id !== pendingDeleteId));
+    setPendingDeleteId(null);
     setConfirmOpen(false);
   };
 
@@ -323,75 +424,30 @@ export default function ManageBooks() {
   return (
     <div className="min-h-screen flex bg-gray-100">
       {/* Sidebar */}
-      < Sidebar />
-      {/* <aside className="w-64 bg-white shadow-md px-4 py-6 flex flex-col justify-between">
-        <div>
-          <h2 className="text-xl font-bold mb-6">Library</h2>
-          <ul className="space-y-2">
-            <li>
-              <Link to="/dashboard" className={navItem}>
-                <CalendarDays size={18} /> Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link to="/manage-books" className={navItemActive}>
-                <BookOpen size={18} /> Manage Books
-              </Link>
-            </li>
-            <li>
-              <Link to="/manage-category" className={navItem}>
-                <Layers size={18} /> Manage Category
-              </Link>
-            </li> */}
-            {/* <li>
-              <Link to="/upload" className={navItem}>
-                <Upload size={18} /> Upload Books
-              </Link>
-            </li> */}
-            {/* <li>
-              <Link to="/members" className={navItem}>
-                <Users size={18} /> Member
-              </Link>
-            </li>
-            <li>
-              <Link to="/" className={navItem}>
-                <BookOpen size={18} /> Check-out Books
-              </Link>
-            </li>
-            <li>
-              <Link to="/Settings" className={navItem}>
-                <HelpCircle size={18} /> Settings
-              </Link>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <Link
-            to="/logout"
-            className="flex items-center gap-2 px-3 py-3 text-red-600 font-medium hover:underline underline-offset-4"
-          >
-            <LogOut size={18} /> Logout
-          </Link>
-        </div>
-      </aside> */}
+      <Sidebar />
 
       {/* Main */}
       <main className="flex-1 p-6 space-y-6">
         <h1 className="text-xl md:text-2xl font-bold text-gray-800">Manage Books</h1>
 
-        {/* Card – soft shadow (no black border) */}
+        {/* Filters */}
+        <FilterBarBooks
+          queryTitle={queryTitle}
+          setQueryTitle={setQueryTitle}
+          filterAuthor={filterAuthor}
+          setFilterAuthor={setFilterAuthor}
+          filterCategory={filterCategory}
+          setFilterCategory={setFilterCategory}
+          authors={options.authors}
+          categories={options.categories}
+          onReset={clearFilters}
+        />
+
+        {/* Card – soft shadow */}
         <section className="bg-white rounded-lg shadow overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3">
             <span className="text-sm font-medium text-gray-700">Books List</span>
-            {/* RIGHT BUTTONS */}
             <div className="flex items-center gap-2">
-              {/* <button
-                type="button"
-                onClick={() => setUploadOpen(true)}
-                className="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 shadow hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
-              >
-                <Upload size={16} /> Upload
-              </button> */}
               <button
                 type="button"
                 onClick={onOpenCreate}
@@ -415,13 +471,10 @@ export default function ManageBooks() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.map((b, i) => (
+                  {pageRows.map((b) => (
                     <tr
-                      key={`${(b.title || "").toLowerCase()}__${(b.author || "")
-                        .toLowerCase()}__${i}`}
-                      className={`border-t last:border-b-0 ${
-                        i % 2 ? "bg-white" : "bg-gray-50"
-                      }`}
+                      key={b.id}
+                      className="border-t last:border-b-0 odd:bg-gray-50 even:bg-white"
                     >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
@@ -442,14 +495,14 @@ export default function ManageBooks() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => onOpenEdit(b, i)}
+                            onClick={() => onOpenEdit(b)}
                             className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
                           >
                             <Pencil size={14} /> Edit
                           </button>
                           <button
                             type="button"
-                            onClick={() => requestDelete(i)}
+                            onClick={() => requestDelete(b.id)}
                             className="inline-flex items-center gap-1 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400 focus:outline-none focus:ring-2 focus:ring-red-300"
                           >
                             <Trash2 size={14} /> Delete
@@ -459,21 +512,31 @@ export default function ManageBooks() {
                     </tr>
                   ))}
 
-                  {displayed.length === 0 && (
+                  {pageRows.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-6 px-4 text-center text-gray-500">
-                        No books found in your data sources.
+                        No books found with current filters.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* Same-to-same pagination design */}
+            {filteredRows.length > 0 && (
+              <Pagination
+                page={tablePage}
+                setPage={setTablePage}
+                totalItems={filteredRows.length}
+                pageSize={PAGE_SIZE}
+              />
+            )}
           </div>
         </section>
       </main>
 
-      {/* ---------- Add/Edit Book Modal (ordered fields) ---------- */}
+      {/* ---------- Add/Edit Book Modal ---------- */}
       {open && (
         <div
           className="fixed inset-0 z-50"
@@ -516,7 +579,7 @@ export default function ManageBooks() {
                     />
                   </div>
 
-                  {/* 2) Author (text input, not select) */}
+                  {/* 2) Author */}
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">Author</label>
                     <input
@@ -528,7 +591,7 @@ export default function ManageBooks() {
                     />
                   </div>
 
-                  {/* 3) Category (text input, not select) */}
+                  {/* 3) Category */}
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">Category</label>
                     <input
@@ -552,7 +615,7 @@ export default function ManageBooks() {
                     />
                   </div>
 
-                  {/* 5) Cover Image with 3s loader then preview */}
+                  {/* 5) Cover Image with loader */}
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">
                       Cover Image (.png, .jpg)
@@ -580,7 +643,7 @@ export default function ManageBooks() {
                     </div>
                   </div>
 
-                  {/* 6) Book File (PDF) with loader */}
+                  {/* 6) Book File (PDF) */}
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">
                       Book File (.pdf)
@@ -604,7 +667,7 @@ export default function ManageBooks() {
                     </div>
                   </div>
 
-                  {/* 7) Audio Clip with loader */}
+                  {/* 7) Audio Clip */}
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">
                       Audio Clip (mp3/wav/m4a)
@@ -723,10 +786,10 @@ export default function ManageBooks() {
                     <h3 className="text-lg font-semibold text-gray-800">
                       Are you sure you want to delete this record?
                     </h3>
-                    {pendingDeleteIndex > -1 && (
+                    {pendingDeleteId && (
                       <p className="mt-1 text-sm text-gray-600">
                         <span className="font-medium">
-                          {displayed[pendingDeleteIndex]?.title || "This book"}
+                          {displayed.find((x) => x.id === pendingDeleteId)?.title || "This book"}
                         </span>{" "}
                         will be permanently removed from the list.
                       </p>
@@ -746,7 +809,7 @@ export default function ManageBooks() {
                 <button
                   type="button"
                   onClick={confirmDelete}
-                  className="rounded-md px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500"
+                  className="rounded-md px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500"
                 >
                   Delete
                 </button>
@@ -784,16 +847,3 @@ export default function ManageBooks() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
