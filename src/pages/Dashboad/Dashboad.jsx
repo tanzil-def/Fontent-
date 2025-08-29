@@ -1,7 +1,3 @@
-
-
-
-
 // Dashboard.jsx (weekly legend BELOW chart: Borrowed / Returned / Overdue)
 
 import { useEffect, useMemo, useRef, useState } from "react";
