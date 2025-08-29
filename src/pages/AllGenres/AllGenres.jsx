@@ -1,6 +1,3 @@
-
-
-
 // src/pages/AllGenres/AllGenres.jsx 
 
 import { useNavigate, useLocation } from "react-router-dom";
