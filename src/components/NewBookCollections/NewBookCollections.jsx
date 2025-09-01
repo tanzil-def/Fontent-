@@ -10,10 +10,10 @@ const books = [
   { id: 3, title: "Co-Intelligence: Living and Working with AI", author: "Ethan Mollick", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754643734/ai6_mh7ans.jpg", rating: 5, status: "Out Of Stock", category: "General" },
   { id: 4, title: "Ace the Data Science Interview: 201 Real Interview Questions Asked By FAANG, Tech Startups, & Wall Street", author: " Nick Singh &  Kevin Huo", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754643910/DS4_ifbyg1.jpg", rating: 4.8, status: "Out Of Stock", category: "Development" },
   { id: 5, title: "Python for Data Analysis", author: "by Wes McKinney", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754644368/ds1_qqs3rd.jpg", rating: 4, status: "Available", category: "Development" },
-  { id: 6, title: "Data Mining: Concepts and Techniques (The Morgan Kaufmann Series in Data Management Systems)", author: "Jiawei Han, Jian Pei &  Hanghang Tong ", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754644513/datamining_oy6mhy.jpg", rating: 5, status: "Available", category: "Development" },
-  { id: 7, title: "Python Crash Course", author: "Eric Matthes", image: "https://covers.openlibrary.org/b/id/8671733-L.jpg", rating: 5, status: "Available", category: "Development" },
-  { id: 8, title: "Eloquent JavaScript", author: "Marijn Haverbeke", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754645070/el_ruimml.jpg", rating: 4, status: "Available", category: "Development" },
-  { id: 9, title: "Practice of System and Network Administration", author: "Thomas Limoncelli, Christina Hogan & Strata Chalup ", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754644753/network_mezj51.jpg", rating: 5, status: "Available", category: "IT & Software" },
+  { id: 6, title: "Data Mining: Concepts and Techniques", author: "Jiawei Han & Jian Pei", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754644513/datamining_oy6mhy.jpg", rating: 5, status: "Available", category: "Development" },
+  { id: 7, title: "Python Crash Course-Institucionstas", author: "Eric Matthes", image: "https://covers.openlibrary.org/b/id/8671733-L.jpg", rating: 5, status: "Available", category: "Development" },
+  { id: 8, title: "Eloquent JavaScript Third Edition", author: "Marijn Haverbeke", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754645070/el_ruimml.jpg", rating: 4, status: "Available", category: "Development" },
+  { id: 9, title: "Practice of System and Network Administration", author: "Thomas Limoncelli & Strata Chalup ", image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754644753/network_mezj51.jpg", rating: 5, status: "Available", category: "IT & Software" },
 ];
 
 export default function NewBookCollections() {
@@ -37,7 +37,7 @@ export default function NewBookCollections() {
   return (
     <section className="mt-12">
       <div className="mb-8 rounded-lg border border-gray-300 overflow-hidden">
-        <div className="px-4 py-3 bg-white flex items-center justify_between">
+        <div className="px-4 py-3 bg-white flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
             NEW BOOK COLLECTIONS
           </h2>
@@ -106,6 +106,7 @@ export default function NewBookCollections() {
     </section>
   );
 }
+
 
 
 
