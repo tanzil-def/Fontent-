@@ -76,7 +76,7 @@
 
 
 
-//BookCard.jsx
+// src/components/BookCard/BookCard.jsx
 import { Star } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -115,7 +115,7 @@ export default function BookCard({ book }) {
   return (
     // Narrower fixed width so rows tend to show 4 full + a half-peek
     <div className="relative w-[200px] sm:w-[200px] snap-start group select-none flex-shrink-0">
-      {/* Cover image in a fixed-size box (no white background, just a light bottom shadow) */}
+      {/* Cover image (no white background; light, soft shadow) */}
       <div className="mx-auto h-56 w-full flex items-center justify-center">
         <img
           src={safe(book?.coverImage, book?.image)}
@@ -129,9 +129,8 @@ export default function BookCard({ book }) {
         />
       </div>
 
-      {/* Body — fixed min height to keep button in the same vertical spot */}
+      {/* Body */}
       <div className="px-1 pt-3 text-center flex flex-col items-center min-h-[170px]">
-        {/* Title (3-word line break retained) */}
         <h3 className="text-sm font-semibold text-gray-900 whitespace-pre-line line-clamp-2">
           {formatTitle(book?.title)}
         </h3>
@@ -157,7 +156,7 @@ export default function BookCard({ book }) {
           {statusText}
         </div>
 
-        {/* View Details button BELOW the status (centered, no overlay) */}
+        {/* View Details button (centered, no overlay) */}
         <div className="mt-3">
           <Link
             to={`/book/${book.id}`}
@@ -170,6 +169,7 @@ export default function BookCard({ book }) {
     </div>
   );
 }
+
 
 
 
