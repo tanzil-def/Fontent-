@@ -2,7 +2,7 @@ const books = {
   recommended: [
     {
       id: "1",
-      title: "Entrepreneurship",
+      title: "The Lean StartUp Entrepreneurship",
       author: "The Lean Startup",
       image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754560763/1_exgphf.png",
     rating: 4,
@@ -26,7 +26,7 @@ const books = {
     // },
     {
   id: "2",
-  title: "Cloud Computing",
+  title: "Architecting Cloud Computing",
   author: "Michael Kavis",
   image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754629465/it5_ppyg5b.jpg",
   rating: 5,
@@ -85,7 +85,7 @@ const books = {
     // },
     {
   id: "5",
-  title: "JavaScript and jQuery",
+  title: "JavaScript and jQuery Interactive Front-End",
   author: "Jon Duckett",
   image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754631369/d4_illzl7.jpg",
   rating: 4,
@@ -112,7 +112,7 @@ const books = {
     },
     {
       id: "7",
-      title: "SQL in 10 Minutes, Sams Teach Yourself",
+      title: "SQL in 10 Minutes, Sams Teach", 
       author: "Ben Forta",
       image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754632489/it4_namssk.jpg",
      rating: 4,
@@ -157,7 +157,7 @@ const books = {
   {
     id: "11",
     image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754641707/ai4_ckmuk3.jpg",
-    author: " Darian Rodriguez Heyman &  Cheryl Contee",
+    author: "Darian Rodriguez & Cheryl Contee",
     title: "AI for Nonprofits",
     description:
       "A collection of actionable AI tools you can apply immediately to help your nonprofit drive social impact and change.In AI for Nonprofits: Putting Artificial Intelligence to Work for Your Cause, a team of leading nonprofit experts and social entrepreneurs delivers a startlingly insightful, strategic “how-to guide” for nonprofit and foundation leaders.",
@@ -167,7 +167,7 @@ const books = {
     id: "12",
     image: "https://res.cloudinary.com/dbm4aqhwi/image/upload/v1754642246/op_douq2p.jpg",
     author: " Andrew Tanenbaum",
-    title: "Modern Operating Systems, Global Edition",
+    title: "Modern Operating Systems",
     description:
       "From the Big Bang to black holes—explore the nature of time and the universe itself.",
     availability: "Available Now",
