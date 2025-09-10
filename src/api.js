@@ -1,16 +1,17 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Replace this with your real base URL
-const API_BASE_URL = 'http://172.16.227.173:8000/api';
+// Base API URL
+const BASE_URL = "http://127.0.0.1:8000/api/";
 
-// Get JWT token from localStorage or any auth store
-const token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTcyLjE2LjIyNy4xNzM6ODAwMC9hcGkvbG9naW4iLCJpYXQiOjE3NTQ1NzYyNTEsImV4cCI6MTc1NDU3OTg1MSwibmJmIjoxNzU0NTc2MjUxLCJqdGkiOiJzdGJkeHNVMnZ6MG1KR2E5Iiwic3ViIjoiMSIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjcifQ.T1KG_n2qvXYpp4ZFjBQiRFpqeqIoyh_aMoNKqvk3pJg";
+// Your token (later you can replace with localStorage or dynamic login)
+const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1NzUzNTM1MX0.ze3RVg6s9qNOQPhX5-_BExhh_lNCKmqXGUQd3lgjE6w";
 
+// Create axios instance
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: BASE_URL,
   headers: {
-    Authorization: `Bearer ${token}`,  // Send token with every request
-    'Content-Type': 'application/json',
+    Authorization: `Bearer ${TOKEN}`, // Use correct variable
+    "Content-Type": "application/json",
   },
 });
 
