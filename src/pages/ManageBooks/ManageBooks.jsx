@@ -14,12 +14,12 @@ import {
   Filter as FilterIcon,
 } from "lucide-react";
 
-import sectionedBooks from "../../data/sampleBooks";
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
 import Pagination from "../../components/Pagination/Pagination";
 
 const PLACEHOLDER_IMG = "https://dummyimage.com/80x80/e5e7eb/9ca3af&text=📘";
-const PAGE_SIZE = 6; // paginate after 6 books
+const PAGE_SIZE = 6;
+const API_BASE_URL = "http://127.0.0.1:8000";
 
 // ---------- helpers ----------
 function toYMD(dateStr) {
@@ -32,33 +32,18 @@ function toYMD(dateStr) {
   return `${y}-${m}-${dd}`;
 }
 
-function normalizeFromSection(item) {
+function normalizeFromApi(item) {
   return {
-    id: String(item.id ?? crypto.randomUUID()),
-    title: item.title ?? "—",
-    author: item.author ?? item.authors ?? "—",
-    category: item.category ?? "—",
-    copies: "—",
-    updatedOn: toYMD(item.publishDate ?? item.stockDate ?? ""),
-    cover: item.image ?? item.coverImage ?? PLACEHOLDER_IMG,
-    pdf: item.pdf ?? "",
-    audio: item.audio ?? "",
-    description: item.summary ?? "",
-  };
-}
-
-function normalizeFromJson(item) {
-  return {
-    id: String(item.id ?? crypto.randomUUID()),
-    title: item.title ?? "—",
-    author: item.authors ?? item.author ?? "—",
-    category: item.category ?? "—",
-    copies: "—",
-    updatedOn: toYMD(item.publishDate ?? ""),
-    cover: item.coverImage ?? PLACEHOLDER_IMG,
-    pdf: item.pdf ?? "",
-    audio: item.audio ?? "",
-    description: item.summary ?? "",
+    id: String(item.id),
+    title: item.title || "—",
+    author: item.author || "—",
+    category: item.category_id ? String(item.category_id) : "—",
+    copies: item.copies_available || "—",
+    updatedOn: toYMD(item.updated_at),
+    cover: item.cover || PLACEHOLDER_IMG,
+    pdf: item.pdf_file || "",
+    audio: item.audio_file || "",
+    description: item.description || "",
   };
 }
 
@@ -136,53 +121,53 @@ export default function ManageBooks() {
     document.title = "Manage Books";
   }, []);
 
-  // --------- load books.json from PUBLIC ----------
-  const [booksJson, setBooksJson] = useState([]);
-  useEffect(() => {
-    const url = `${import.meta.env.BASE_URL}books.json`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setBooksJson(Array.isArray(data) ? data : []))
-      .catch(() => setBooksJson([]));
+  // --------- load books from API ----------
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const fetchBooks = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showError("Authentication required. Please log in again.");
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/api/book/list`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setBooks(data.map(normalizeFromApi));
+      } else if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        showError("Session expired. Please log in again.");
+        // Redirect to login page
+        window.location.href = '/login';
+      } else {
+        console.error("Failed to fetch books");
+        showError("Failed to fetch books. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error fetching books:", error);
+      showError("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // build table data (normalized)
-  const baseBooks = useMemo(() => {
-    const fromSections = [];
-    if (sectionedBooks) {
-      const {
-        recommended = [],
-        popular = [],
-        business = [],
-        featuredBooks = [],
-        relatedBooks = [],
-      } = sectionedBooks;
-      [...recommended, ...popular, ...business, ...featuredBooks, ...relatedBooks].forEach(
-        (b) => fromSections.push(normalizeFromSection(b))
-      );
-    }
-    const fromJson = booksJson.map(normalizeFromJson);
-
-    // dedupe by title+author
-    const seen = new Set();
-    const combined = [];
-    [...fromSections, ...fromJson].forEach((b) => {
-      const key = `${(b.title || "").trim().toLowerCase()}__${(b.author || "")
-        .trim()
-        .toLowerCase()}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        combined.push(b);
-      }
-    });
-
-    combined.sort((a, b) => String(b.updatedOn).localeCompare(String(a.updatedOn)));
-    return combined;
-  }, [booksJson]);
+  useEffect(() => {
+    fetchBooks();
+  }, [fetchBooks]);
 
   // displayed list (allows local add/edit/delete)
   const [displayed, setDisplayed] = useState([]);
-  useEffect(() => setDisplayed(baseBooks), [baseBooks]);
+  useEffect(() => setDisplayed(books), [books]);
 
   // --------- FILTER STATE ----------
   const [queryTitle, setQueryTitle] = useState("");
@@ -236,7 +221,7 @@ export default function ManageBooks() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState("create"); // 'create' | 'edit'
-  const [editingIndex, setEditingIndex] = useState(-1); // index within 'displayed'
+  const [editingId, setEditingId] = useState(null); // book ID
 
   // --------- Delete confirmation modal state ----------
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -246,17 +231,13 @@ export default function ManageBooks() {
   const emptyForm = {
     title: "",
     author: "",
-    category: "",
-    copies: "",
-    coverFile: null,
-    coverUrl: "",
-    imageLoading: false,
-    pdfFile: null,
-    pdfUrl: "",
-    pdfLoading: false,
-    audioFile: null,
-    audioUrl: "",
-    audioLoading: false,
+    category_id: "1",
+    format: "HARD_COPY",
+    copies_total: "1",
+    copies_available: "1",
+    cover: "",
+    pdf_file: "",
+    audio_file: "",
     description: "",
   };
   const [form, setForm] = useState(emptyForm);
@@ -264,35 +245,27 @@ export default function ManageBooks() {
   const rowToForm = (row) => ({
     title: row.title && row.title !== "—" ? row.title : "",
     author: row.author && row.author !== "—" ? row.author : "",
-    category: row.category && row.category !== "—" ? row.category : "",
-    copies:
-      row.copies !== undefined && row.copies !== "—" ? String(row.copies) : "",
-    coverFile: null,
-    coverUrl: row.cover || "",
-    imageLoading: false,
-    pdfFile: null,
-    pdfUrl: row.pdf || "",
-    pdfLoading: false,
-    audioFile: null,
-    audioUrl: row.audio || "",
-    audioLoading: false,
+    category_id: row.category && row.category !== "—" ? row.category : "1",
+    format: "HARD_COPY",
+    copies_total: row.copies !== undefined && row.copies !== "—" ? String(row.copies) : "1",
+    copies_available: row.copies !== undefined && row.copies !== "—" ? String(row.copies) : "1",
+    cover: row.cover || "",
+    pdf_file: row.pdf || "",
+    audio_file: row.audio || "",
     description: row.description || "",
   });
 
   const onOpenCreate = () => {
     setMode("create");
-    setEditingIndex(-1);
+    setEditingId(null);
     setForm(emptyForm);
     setOpen(true);
   };
 
-  // Accept row object (even from filtered/paged list) and resolve to its index inside 'displayed'
   const onOpenEdit = (row) => {
-    const idx = displayed.findIndex((x) => x.id === row.id);
-    if (idx === -1) return;
     setMode("edit");
-    setEditingIndex(idx);
-    setForm(rowToForm(displayed[idx]));
+    setEditingId(row.id);
+    setForm(rowToForm(row));
     setOpen(true);
   };
 
@@ -310,98 +283,96 @@ export default function ManageBooks() {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // file inputs + 3s loader for image/pdf/audio
-  const handleFile = (e, kind) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-
-    if (kind === "image") {
-      setForm((f) => ({ ...f, imageLoading: true }));
-      const url = URL.createObjectURL(file);
-      setTimeout(() => {
-        setForm((f) => ({
-          ...f,
-          coverFile: file,
-          coverUrl: url,
-          imageLoading: false,
-        }));
-      }, 3000);
-    } else if (kind === "pdf") {
-      setForm((f) => ({ ...f, pdfLoading: true }));
-      const url = URL.createObjectURL(file);
-      setTimeout(() => {
-        setForm((f) => ({
-          ...f,
-          pdfFile: file,
-          pdfUrl: url,
-          pdfLoading: false,
-        }));
-      }, 3000);
-    } else if (kind === "audio") {
-      setForm((f) => ({ ...f, audioLoading: true }));
-      const url = URL.createObjectURL(file);
-      setTimeout(() => {
-        setForm((f) => ({
-          ...f,
-          audioFile: file,
-          audioUrl: url,
-          audioLoading: false,
-        }));
-      }, 3000);
-    }
-  };
-
-  // Upload popup (unused UI left as-is)
-  const [uploadOpen, setUploadOpen] = useState(false);
-
   // 2s "Saved" toast
   const [savedToast, setSavedToast] = useState(false);
+  const [errorToast, setErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const showError = (message) => {
+    setErrorMessage(message);
+    setErrorToast(true);
+    setTimeout(() => setErrorToast(false), 3000);
+  };
 
   const handleSave = async () => {
     if (!form.title) {
-      alert("Please enter a book name.");
+      showError("Please enter a book name.");
+      return;
+    }
+    if (!form.author) {
+      showError("Please enter an author name.");
       return;
     }
     setSaving(true);
 
-    if (mode === "edit" && editingIndex >= 0) {
-      setDisplayed((prev) => {
-        const next = [...prev];
-        const row = { ...next[editingIndex] };
-        row.title = form.title || "—";
-        row.author = form.author || "—";
-        row.category = form.category || "—";
-        row.copies = form.copies || "—";
-        row.cover = form.coverUrl || row.cover || PLACEHOLDER_IMG;
-        row.pdf = form.pdfUrl || row.pdf || "";
-        row.audio = form.audioUrl || row.audio || "";
-        row.description = form.description || "";
-        row.updatedOn = toYMD(new Date().toISOString());
-        next[editingIndex] = row;
-        return next;
-      });
-    } else {
-      const newRow = {
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        title: form.title || "—",
-        author: form.author || "—",
-        category: form.category || "—",
-        copies: form.copies || "—",
-        updatedOn: toYMD(new Date().toISOString()),
-        cover: form.coverUrl || PLACEHOLDER_IMG,
-        pdf: form.pdfUrl || "",
-        audio: form.audioUrl || "",
-        description: form.description || "",
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showError("Authentication required. Please log in again.");
+        setSaving(false);
+        window.location.href = '/login';
+        return;
+      }
+
+      // Prepare book data according to API requirements
+      const bookData = {
+        title: form.title,
+        author: form.author,
+        category_id: parseInt(form.category_id) || 1,
+        format: form.format || "HARD_COPY",
+        copies_total: parseInt(form.copies_total) || 1,
+        copies_available: parseInt(form.copies_available) || 1,
+        description: form.description || "No description provided",
+        cover: form.cover || PLACEHOLDER_IMG,
+        pdf_file: form.pdf_file || "",
+        audio_file: form.audio_file || ""
       };
-      setDisplayed((prev) => [newRow, ...prev]);
+
+      let url, method;
+      if (mode === "edit") {
+        url = `${API_BASE_URL}/api/book/edit/${editingId}`;
+        method = 'PUT';
+      } else {
+        url = `${API_BASE_URL}/api/book/create`;
+        method = 'POST';
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json'
+        },
+        body: JSON.stringify(bookData)
+      });
+
+      if (response.ok) {
+        // Refresh the book list
+        await fetchBooks();
+        
+        setSaving(false);
+        setOpen(false);
+
+        // Show success toast
+        setSavedToast(true);
+        setTimeout(() => setSavedToast(false), 2000);
+      } else if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        showError("Session expired. Please log in again.");
+        window.location.href = '/login';
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Server error:", response.status, errorData);
+        showError(`Failed to ${mode} book: ${errorData.detail || response.statusText}`);
+        setSaving(false);
+      }
+    } catch (error) {
+      console.error('Error saving book:', error);
+      showError('Network error. Please try again.');
+      setSaving(false);
     }
-
-    setSaving(false);
-    setOpen(false);
-
-    // Show toast for 2s
-    setSavedToast(true);
-    setTimeout(() => setSavedToast(false), 2000);
   };
 
   const requestDelete = (id) => {
@@ -409,17 +380,59 @@ export default function ManageBooks() {
     setConfirmOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDeleteId) return;
-    setDisplayed((prev) => prev.filter((x) => x.id !== pendingDeleteId));
-    setPendingDeleteId(null);
-    setConfirmOpen(false);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showError("Authentication required. Please log in again.");
+        window.location.href = '/login';
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/api/book/delete/${pendingDeleteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        // Refresh the book list
+        await fetchBooks();
+        
+        setSavedToast(true);
+        setTimeout(() => setSavedToast(false), 2000);
+      } else if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        showError("Session expired. Please log in again.");
+        window.location.href = '/login';
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showError(`Failed to delete book: ${errorData.detail || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error deleting book:', error);
+      showError('Network error. Please try again.');
+    } finally {
+      setPendingDeleteId(null);
+      setConfirmOpen(false);
+    }
   };
 
-  const navItem =
-    "flex items-center gap-2 px-3 py-3 text-gray-700 hover:text-sky-500 transition-colors";
-  const navItemActive =
-    "flex items-center gap-2 px-3 py-3 text-sky-600 font-medium";
+  if (loading) {
+    return (
+      <div className="min-h-screen flex bg-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-6 flex items-center justify-center">
+          <Loader2 className="animate-spin text-sky-600" size={32} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-gray-100">
@@ -482,6 +495,9 @@ export default function ManageBooks() {
                             src={b.cover || PLACEHOLDER_IMG}
                             alt={b.title}
                             className="h-10 w-10 rounded object-cover bg-gray-100 flex-shrink-0"
+                            onError={(e) => {
+                              e.target.src = PLACEHOLDER_IMG;
+                            }}
                           />
                           <p className="font-semibold text-gray-800 truncate">
                             {b.title}
@@ -569,129 +585,118 @@ export default function ManageBooks() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* 1) Book */}
                   <div className="md:col-span-2">
-                    <label className="block text-sm text-gray-700 mb-1">Book</label>
+                    <label className="block text-sm text-gray-700 mb-1">Book Title *</label>
                     <input
                       name="title"
                       value={form.title}
                       onChange={handleChange}
-                      placeholder="book name"
+                      placeholder="Enter book title"
                       className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                      required
                     />
                   </div>
 
                   {/* 2) Author */}
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Author</label>
+                    <label className="block text-sm text-gray-700 mb-1">Author *</label>
                     <input
                       name="author"
                       value={form.author}
                       onChange={handleChange}
-                      placeholder="author name"
+                      placeholder="Enter author name"
                       className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                      required
                     />
                   </div>
 
-                  {/* 3) Category */}
+                  {/* 3) Category ID */}
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Category</label>
+                    <label className="block text-sm text-gray-700 mb-1">Category ID</label>
                     <input
-                      name="category"
-                      value={form.category}
+                      name="category_id"
+                      value={form.category_id}
                       onChange={handleChange}
-                      placeholder="category"
+                      placeholder="Category ID (number)"
+                      type="number"
+                      min="1"
                       className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
                     />
                   </div>
 
-                  {/* 4) No of copy */}
+                  {/* 4) Format (hidden but included in form) */}
+                  <input type="hidden" name="format" value={form.format} />
+
+                  {/* 5) Total Copies */}
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">No of copy</label>
+                    <label className="block text-sm text-gray-700 mb-1">Total Copies</label>
                     <input
-                      name="copies"
-                      value={form.copies}
+                      name="copies_total"
+                      value={form.copies_total}
                       onChange={handleChange}
-                      placeholder="No of copy"
+                      placeholder="Total copies"
+                      type="number"
+                      min="1"
                       className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
                     />
                   </div>
 
-                  {/* 5) Cover Image with loader */}
+                  {/* 6) Available Copies */}
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">
-                      Cover Image (.png, .jpg)
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        accept=".png,.jpg,.jpeg,image/png,image/jpeg,image/*"
-                        onChange={(e) => handleFile(e, "image")}
-                        className="w-full rounded border border-gray-300 px-3 py-2 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                      />
-                      <div className="w-16 h-16 rounded-md bg-gray-100 overflow-hidden flex items-center justify-center">
-                        {form.imageLoading ? (
-                          <Loader2 className="animate-spin text-gray-400" size={20} />
-                        ) : form.coverUrl ? (
-                          <img
-                            src={form.coverUrl}
-                            alt="Cover preview"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-400">Preview</span>
-                        )}
-                      </div>
-                    </div>
+                    <label className="block text-sm text-gray-700 mb-1">Available Copies</label>
+                    <input
+                      name="copies_available"
+                      value={form.copies_available}
+                      onChange={handleChange}
+                      placeholder="Available copies"
+                      type="number"
+                      min="0"
+                      className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    />
                   </div>
 
-                  {/* 6) Book File (PDF) */}
-                  <div>
+                  {/* 7) Cover Image URL */}
+                  <div className="md:col-span-2">
                     <label className="block text-sm text-gray-700 mb-1">
-                      Book File (.pdf)
+                      Cover Image URL
                     </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        onChange={(e) => handleFile(e, "pdf")}
-                        className="w-full rounded border border-gray-300 px-3 py-2 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                      />
-                      <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
-                        {form.pdfLoading ? (
-                          <Loader2 className="animate-spin text-gray-400" size={20} />
-                        ) : form.pdfUrl ? (
-                          <FileText className="text-sky-600" size={24} />
-                        ) : (
-                          <span className="text-xs text-gray-400">PDF</span>
-                        )}
-                      </div>
-                    </div>
+                    <input
+                      name="cover"
+                      value={form.cover}
+                      onChange={handleChange}
+                      placeholder="https://example.com/cover.jpg"
+                      className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    />
                   </div>
 
-                  {/* 7) Audio Clip */}
-                  <div>
+                  {/* 8) PDF File URL */}
+                  <div className="md:col-span-2">
                     <label className="block text-sm text-gray-700 mb-1">
-                      Audio Clip (mp3/wav/m4a)
+                      PDF File URL
                     </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        accept=".mp3,.wav,.m4a,audio/*"
-                        onChange={(e) => handleFile(e, "audio")}
-                        className="w-full rounded border border-gray-300 px-3 py-2 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                      />
-                      <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
-                        {form.audioLoading ? (
-                          <Loader2 className="animate-spin text-gray-400" size={20} />
-                        ) : form.audioUrl ? (
-                          <FileAudio2 className="text-sky-600" size={24} />
-                        ) : (
-                          <span className="text-xs text-gray-400">Audio</span>
-                        )}
-                      </div>
-                    </div>
+                    <input
+                      name="pdf_file"
+                      value={form.pdf_file}
+                      onChange={handleChange}
+                      placeholder="https://example.com/book.pdf"
+                      className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    />
                   </div>
 
-                  {/* 8) Description */}
+                  {/* 9) Audio File URL */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-gray-700 mb-1">
+                      Audio File URL
+                    </label>
+                    <input
+                      name="audio_file"
+                      value={form.audio_file}
+                      onChange={handleChange}
+                      placeholder="https://example.com/audio.mp3"
+                      className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    />
+                  </div>
+
+                  {/* 10) Description */}
                   <div className="md:col-span-2">
                     <label className="block text-sm text-gray-700 mb-1">Description</label>
                     <textarea
@@ -699,7 +704,7 @@ export default function ManageBooks() {
                       value={form.description}
                       onChange={handleChange}
                       rows={4}
-                      placeholder="short description / notes"
+                      placeholder="Enter book description"
                       className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
                     />
                   </div>
@@ -721,42 +726,6 @@ export default function ManageBooks() {
                   className="rounded-md px-5 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-70"
                 >
                   {mode === "edit" ? (saving ? "Updating…" : "Update") : saving ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------- Upload Popup ---------- */}
-      {uploadOpen && (
-        <div
-          className="fixed inset-0 z-50"
-          aria-modal="true"
-          role="dialog"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setUploadOpen(false);
-          }}
-        >
-          <div className="absolute inset-0 bg-black/50 opacity-0 animate-[fadeIn_.2s_ease-out_forwards]" />
-          <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="w-full max-w-md rounded-lg bg-white shadow-lg opacity-0 translate-y-2 animate-[popIn_.2s_ease-out_forwards]">
-              <div className="px-6 py-4 border-b">
-                <h3 className="text-lg font-semibold text-gray-800">Upload</h3>
-              </div>
-              <div className="px-6 py-5 space-y-3">
-                <p className="text-sm text-gray-600">
-                  Use the form inside <span className="font-medium">Add / Edit book</span> to attach the
-                  cover image, PDF, and audio clip. This popup is just a quick note for users.
-                </p>
-              </div>
-              <div className="px-6 py-4 bg-white flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setUploadOpen(false)}
-                  className="rounded-md px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-                >
-                  Close
                 </button>
               </div>
             </div>
@@ -819,7 +788,7 @@ export default function ManageBooks() {
         </div>
       )}
 
-      {/* NEW: Saved toast (2s) */}
+      {/* Saved toast (2s) */}
       {savedToast && (
         <div
           className="fixed bottom-6 right-6 z-[60] pointer-events-none animate-[toastIn_.25s_ease-out]"
@@ -833,6 +802,25 @@ export default function ManageBooks() {
             <div>
               <p className="text-sm font-semibold text-gray-900">Saved</p>
               <p className="text-xs text-gray-600">Your changes have been updated.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error toast (3s) */}
+      {errorToast && (
+        <div
+          className="fixed bottom-6 right-6 z-[60] pointer-events-none animate-[toastIn_.25s_ease-out]"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div className="pointer-events-auto flex items-start gap-3 rounded-xl bg-red-50 shadow-lg ring-1 ring-black/5 px-4 py-3">
+            <div className="mt-0.5">
+              <AlertTriangle className="text-red-600" size={22} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Error</p>
+              <p className="text-xs text-gray-600">{errorMessage}</p>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import axios from "axios";
 const BASE_URL = "http://127.0.0.1:8000/api/";
 
 // Your token (later you can replace with localStorage or dynamic login)
-const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1NzUzNTM1MX0.ze3RVg6s9qNOQPhX5-_BExhh_lNCKmqXGUQd3lgjE6w";
+const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1NzU5Mzk3M30.sYhkbPDi7Iv_ILHZIIoRu1aAy8D-15XiDZmmtjdNEtE";
 
 // Create axios instance
 const api = axios.create({

@@ -1,21 +1,39 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Trash2 } from "lucide-react";
+import axios from "axios";
 
 export default function Borrowed() {
-  const [borrowedBooks, setBorrowedBooks] = useState(() => {
-    return JSON.parse(localStorage.getItem("borrowedBooks")) || [];
-  });
+  const [borrowedBooks, setBorrowedBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch borrowed books from API
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("borrowedBooks")) || [];
-    setBorrowedBooks(stored);
+    const fetchBorrowed = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/book/list", {
+          headers: {
+            Authorization: "Bearer <YOUR_TOKEN_HERE>",
+            Accept: "application/json",
+          },
+        });
+        // Example: Only show borrowed books (you can adjust filter as needed)
+        setBorrowedBooks(res.data || []);
+      } catch (err) {
+        console.error("Failed to fetch borrowed books:", err);
+        setBorrowedBooks([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBorrowed();
   }, []);
 
   const handleRemove = (id) => {
     const updated = borrowedBooks.filter((book) => book.id !== id);
     setBorrowedBooks(updated);
-    localStorage.setItem("borrowedBooks", JSON.stringify(updated));
+    // Optional: Update API or localStorage if needed
   };
 
   const handleQuantityChange = (id, value) => {
@@ -23,7 +41,6 @@ export default function Borrowed() {
       book.id === id ? { ...book, quantity: value } : book
     );
     setBorrowedBooks(updated);
-    localStorage.setItem("borrowedBooks", JSON.stringify(updated));
   };
 
   const increaseQty = (id) => {
@@ -31,7 +48,6 @@ export default function Borrowed() {
       book.id === id ? { ...book, quantity: (book.quantity || 1) + 1 } : book
     );
     setBorrowedBooks(updated);
-    localStorage.setItem("borrowedBooks", JSON.stringify(updated));
   };
 
   const decreaseQty = (id) => {
@@ -41,8 +57,15 @@ export default function Borrowed() {
         : book
     );
     setBorrowedBooks(updated);
-    localStorage.setItem("borrowedBooks", JSON.stringify(updated));
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-center">
+        <p className="text-lg text-gray-600 font-medium">Loading borrowed books...</p>
+      </div>
+    );
+  }
 
   if (borrowedBooks.length === 0) {
     return (
@@ -75,7 +98,7 @@ export default function Borrowed() {
           >
             <div className="flex items-center gap-4">
               <img
-                src={book.coverImage || book.image}
+                src={book.cover || book.coverImage || book.image}
                 alt={book.title}
                 className="w-24 h-32 object-cover rounded-md"
               />
@@ -83,9 +106,8 @@ export default function Borrowed() {
                 <h3 className="text-lg font-semibold text-gray-800">
                   {book.title}
                 </h3>
-                <p className="text-sm text-gray-500">{book.authors}</p>
+                <p className="text-sm text-gray-500">{book.author || book.authors}</p>
 
-                {/* Quantity with -/+ buttons */}
                 <div className="mt-2 flex items-center gap-3 text-sm">
                   <label htmlFor={`qty-${book.id}`} className="text-sm">
                     Quantity:
@@ -121,7 +143,6 @@ export default function Borrowed() {
               </div>
             </div>
 
-            {/* Remove */}
             <button
               onClick={() => handleRemove(book.id)}
               className="mt-4 sm:mt-0 flex items-center text-sm text-red-500 hover:text-red-700"
@@ -132,7 +153,6 @@ export default function Borrowed() {
         ))}
       </div>
 
-      {/* Checkout button */}
       <div className="mt-8 text-center">
         <Link
           to="/fill-up-form"

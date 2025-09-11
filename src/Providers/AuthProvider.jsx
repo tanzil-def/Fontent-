@@ -1,36 +1,39 @@
-// src/providers/AuthProvider.jsx
+// src/Providers/AuthProvider.jsx
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Persist across refresh
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem("lms_auth") === "true";
-  });
-
+  // Token check (persist after refresh)
+  const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const navigate = useNavigate();
 
-  // Keep localStorage synced
+  const isAuthenticated = !!token; // true if token exists
+
+  // Sync localStorage with state
   useEffect(() => {
-    localStorage.setItem("lms_auth", isAuthenticated ? "true" : "false");
-  }, [isAuthenticated]);
+    if (token) {
+      localStorage.setItem("token", token);
+    } else {
+      localStorage.removeItem("token");
+    }
+  }, [token]);
 
-  // Call after real API login success
-  const login = () => {
-    setIsAuthenticated(true);
-    navigate("/", { replace: true }); // go straight to Home
+  const login = (newToken) => {
+    setToken(newToken);   // save token to state
+    navigate("/dashboard", { replace: true });
   };
 
-  // Call from Logout button
   const logout = () => {
-    setIsAuthenticated(false);
-    // (Optional) clear tokens here if you store any
-    navigate("/welcome", { replace: true }); // show front page
+    setToken(null);
+    navigate("/login", { replace: true });
   };
 
-  const value = useMemo(() => ({ isAuthenticated, login, logout }), [isAuthenticated]);
+  const value = useMemo(
+    () => ({ token, isAuthenticated, login, logout }),
+    [token, isAuthenticated]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
