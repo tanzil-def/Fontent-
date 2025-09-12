@@ -1,34 +1,15 @@
-
 // ManageCategory.jsx
-
-import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
-  CalendarDays,
-  Upload,
-  Users,
-  BookOpen,
-  HelpCircle,
-  LogOut,
-  Layers,
   Plus,
   Pencil,
   Trash2,
   CheckCircle2,
-  AlertTriangle, // NEW: for delete confirm
+  AlertTriangle,
 } from "lucide-react";
-import sectionedBooks from "../../data/sampleBooks";
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
 
-// seed (only used if no categories found) — status removed
-const seedCategories = [
-  { id: 1, name: "Web Design", slug: "web-design" },
-  { id: 2, name: "Web Development", slug: "web-development" },
-  { id: 3, name: "Programming", slug: "programming" },
-  { id: 4, name: "Commerce", slug: "commerce" },
-];
-
-// helper: slugify category names
+// Helper: slugify category names
 const slugify = (s = "") =>
   s
     .toString()
@@ -38,71 +19,82 @@ const slugify = (s = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 
+// API configuration
+const API_BASE = "http://127.0.0.1:8000/api/categories"; // only URL
+const API_TOKEN = window.API_TOKEN || ""; // token is dynamically injected
+
 export default function ManageCategory() {
   useEffect(() => {
     document.title = "Manage Category";
   }, []);
 
-  // Load books.json (public)
-  const [booksJson, setBooksJson] = useState([]);
-  useEffect(() => {
-    const url = `${import.meta.env.BASE_URL}books.json`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setBooksJson(Array.isArray(data) ? data : []))
-      .catch(() => setBooksJson([]));
-  }, []);
+  // State for categories
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Build unique category list from sampleBooks + books.json
-  const computedCategories = useMemo(() => {
-    const set = new Set();
-
-    if (sectionedBooks && typeof sectionedBooks === "object") {
-      Object.values(sectionedBooks).forEach((arr) => {
-        if (Array.isArray(arr)) {
-          arr.forEach((item) => {
-            if (item && item.category) set.add(String(item.category).trim());
-          });
-        }
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE}/api/category/list`, {
+        headers: {
+          Authorization: `Bearer ${API_TOKEN}`,
+          accept: "application/json",
+        },
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      // Transform API data to match our UI format
+      const formattedData = data.map((category) => ({
+        id: category.id,
+        name: category.name,
+        slug: slugify(category.name),
+        description: category.description,
+        book_count: category.book_count,
+      }));
+
+      setCategories(formattedData);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      console.error("Failed to fetch categories:", err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    booksJson.forEach((b) => {
-      if (b && b.category) set.add(String(b.category).trim());
-    });
-
-    const list = Array.from(set).sort((a, b) => a.localeCompare(b));
-    if (list.length === 0) return seedCategories;
-
-    return list.map((name, i) => ({
-      id: i + 1,
-      name,
-      slug: slugify(name),
-    }));
-  }, [booksJson]);
-
-  // Local rows (so add/edit/delete reflect immediately)
-  const [categories, setCategories] = useState(seedCategories);
-  useEffect(() => setCategories(computedCategories), [computedCategories]);
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   // Modal state (Add / Edit)
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState("create"); // 'create' | 'edit'
-  const [editingIndex, setEditingIndex] = useState(-1);
-  const [form, setForm] = useState({ name: "" }); // status removed
+  const [mode, setMode] = useState("create");
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ name: "", description: "" });
 
   const onOpenCreate = () => {
     setMode("create");
-    setEditingIndex(-1);
-    setForm({ name: "" });
+    setEditingId(null);
+    setForm({ name: "", description: "" });
     setOpen(true);
   };
-  const onOpenEdit = (row, index) => {
+
+  const onOpenEdit = (category) => {
     setMode("edit");
-    setEditingIndex(index);
-    setForm({ name: row.name || "" });
+    setEditingId(category.id);
+    setForm({
+      name: category.name || "",
+      description: category.description || "",
+    });
     setOpen(true);
   };
+
   const onClose = () => setOpen(false);
 
   const handleChange = (e) => {
@@ -113,131 +105,100 @@ export default function ManageCategory() {
   // Saved toast (2s)
   const [savedToast, setSavedToast] = useState(false);
 
-  const handleSave = () => {
+  // API call to create/update category
+  const handleSave = async () => {
     if (!form.name.trim()) {
       alert("Please enter a category name.");
       return;
     }
-    const row = {
-      id:
-        mode === "edit" && editingIndex > -1
-          ? categories[editingIndex]?.id ?? editingIndex + 1
-          : (categories[categories.length - 1]?.id || 0) + 1,
-      name: form.name.trim(),
-      slug: slugify(form.name),
-    };
 
-    if (mode === "edit" && editingIndex > -1) {
-      setCategories((prev) => {
-        const next = [...prev];
-        next[editingIndex] = row;
-        return next;
+    try {
+      const url =
+        mode === "create"
+          ? `${API_BASE}/api/category/create`
+          : `${API_BASE}/api/category/edit/${editingId}`;
+
+      const method = mode === "create" ? "POST" : "PUT";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${API_TOKEN}`,
+          accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          description: form.description.trim(),
+        }),
       });
-    } else {
-      setCategories((prev) => [...prev, row]);
-    }
 
-    setOpen(false);
-    setSavedToast(true);
-    setTimeout(() => setSavedToast(false), 2000);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Refresh the category list
+      await fetchCategories();
+
+      setOpen(false);
+      setSavedToast(true);
+      setTimeout(() => setSavedToast(false), 2000);
+    } catch (err) {
+      console.error("Failed to save category:", err);
+      alert("Failed to save category. Please try again.");
+    }
   };
 
   // Delete confirmation
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDeleteIndex, setPendingDeleteIndex] = useState(-1);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
-  const requestDelete = (index) => {
-    setPendingDeleteIndex(index);
+  const requestDelete = (id) => {
+    setPendingDeleteId(id);
     setConfirmOpen(true);
   };
+
   const onCloseConfirm = () => {
-    setPendingDeleteIndex(-1);
+    setPendingDeleteId(null);
     setConfirmOpen(false);
   };
-  const confirmDelete = () => {
-    if (pendingDeleteIndex < 0) return;
-    setCategories((prev) => prev.filter((_, i) => i !== pendingDeleteIndex));
-    setPendingDeleteIndex(-1);
-    setConfirmOpen(false);
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/category/delete/${pendingDeleteId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${API_TOKEN}`,
+            accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Refresh the category list
+      await fetchCategories();
+
+      setPendingDeleteId(null);
+      setConfirmOpen(false);
+    } catch (err) {
+      console.error("Failed to delete category:", err);
+      alert("Failed to delete category. Please try again.");
+    }
   };
 
   return (
     <div className="min-h-screen flex bg-gray-100">
-      {/* Sidebar — identical styling */}
+      {/* Sidebar */}
       <Sidebar />
-      {/* <aside className="w-64 bg-white shadow-md px-4 py-6 flex flex-col justify-between">
-        <div>
-          <h2 className="text-xl font-bold mb-6">Library</h2>
-          <ul className="space-y-3">
-            <li>
-              <Link
-                to="/dashboard"
-                className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
-              >
-                <CalendarDays size={18} /> Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/manage-books"
-                className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
-              >
-                <BookOpen size={18} /> Manage Books
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/manage-category"
-                className="flex items-center gap-2 text-sky-600 font-medium"
-              >
-                <Layers size={18} /> Manage Category
-              </Link>
-            </li> */}
-            {/* <li>
-              <Link
-                to="/upload"
-                className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
-              >
-                <Upload size={18} /> Upload Books
-              </Link>
-            </li> */}
-            {/* <li>
-              <Link
-                to="/members"
-                className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
-              >
-                <Users size={18} /> Member
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/"
-                className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
-              >
-                <BookOpen size={18} /> Check-out Books
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/Setting"
-                className="flex items-center gap-2 text-gray-700 hover:text-sky-500 transition-colors"
-              >
-                <HelpCircle size={18} /> Settings
-              </Link>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <Link
-            to="/logout"
-            className="flex items-center gap-2 text-red-600 font-medium hover:underline underline-offset-4"
-          >
-            <LogOut size={18} /> Logout
-          </Link>
-        </div>
-      </aside> */}
 
-      {/* Main */}
+      {/* Main Content */}
       <main className="flex-1 p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl md:text-2xl font-bold text-gray-800">
@@ -252,54 +213,81 @@ export default function ManageCategory() {
           </button>
         </div>
 
-        <div className="bg-white rounded shadow">
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-3 px-4 min-w-[80px]">#</th>
-                  <th className="py-3 px-4 min-w-[220px]">Category</th>
-                  <th className="py-3 px-4 min-w-[220px]">Slug</th>
-                  <th className="py-3 px-4 min-w-[160px]">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((c, idx) => (
-                  <tr key={`${c.slug}__${idx}`} className="border-b last:border-0 even:bg-gray-50">
-                    <td className="py-3 px-4 text-gray-700">{idx + 1}</td>
-                    <td className="py-3 px-4 text-gray-800 font-medium">{c.name}</td>
-                    <td className="py-3 px-4 text-gray-700">{c.slug}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onOpenEdit(c, idx)}  // EDIT FORM
-                          className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                        >
-                          <Pencil size={14} /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => requestDelete(idx)}  // DELETE POPUP
-                          className="inline-flex items-center gap-1 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400 focus:outline-none focus:ring-2 focus:ring-red-300"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {loading && (
+          <div className="bg-white rounded shadow p-6 text-center">
+            <p>Loading categories...</p>
           </div>
+        )}
 
-          <div className="px-4 py-3 text-xs text-gray-500 md:hidden">
-            Tip: swipe horizontally to see all columns.
+        {error && (
+          <div className="bg-red-100 rounded shadow p-4 text-red-700">
+            <p>Error: {error}</p>
+            <button
+              onClick={fetchCategories}
+              className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
           </div>
-        </div>
+        )}
+
+        {!loading && !error && (
+          <div className="bg-white rounded shadow">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-3 px-4 min-w-[80px]">#</th>
+                    <th className="py-3 px-4 min-w-[220px]">Category</th>
+                    <th className="py-3 px-4 min-w-[220px]">Slug</th>
+                    <th className="py-3 px-4 min-w-[160px]">Books</th>
+                    <th className="py-3 px-4 min-w-[160px]">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((c, idx) => (
+                    <tr
+                      key={c.id}
+                      className="border-b last:border-0 even:bg-gray-50"
+                    >
+                      <td className="py-3 px-4 text-gray-700">{idx + 1}</td>
+                      <td className="py-3 px-4 text-gray-800 font-medium">
+                        {c.name}
+                      </td>
+                      <td className="py-3 px-4 text-gray-700">{c.slug}</td>
+                      <td className="py-3 px-4 text-gray-700">{c.book_count}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onOpenEdit(c)}
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                          >
+                            <Pencil size={14} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => requestDelete(c.id)}
+                            className="inline-flex items-center gap-1 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400 focus:outline-none focus:ring-2 focus:ring-red-300"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-4 py-3 text-xs text-gray-500 md:hidden">
+              Tip: swipe horizontally to see all columns.
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* -------- Modal: Add/Edit Category (matches your screenshot) -------- */}
+      {/* Modal: Add/Edit Category */}
       {open && (
         <div
           className="fixed inset-0 z-50"
@@ -315,7 +303,6 @@ export default function ManageCategory() {
           <div className="absolute inset-0 flex items-start justify-center pt-10">
             <div className="w-full max-w-2xl mx-4 rounded-lg bg-white shadow-lg border border-gray-200 opacity-0 translate-y-2 animate-[popIn_.22s_ease-out_forwards]">
               <div className="px-6 py-4 border-b flex items-center gap-2">
-                {/* Screenshot shows plus icon even on Edit, so we keep Plus */}
                 <Plus size={20} className="text-gray-700" />
                 <h3 className="text-lg font-semibold text-gray-800">
                   {mode === "edit" ? "Edit category" : "Add category"}
@@ -335,10 +322,22 @@ export default function ManageCategory() {
                     className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    name="description"
+                    value={form.description}
+                    onChange={handleChange}
+                    placeholder="Type category description"
+                    className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    rows="3"
+                  />
+                </div>
               </div>
 
               <div className="px-6 py-4 border-t bg-white flex justify-end gap-3">
-                {/* Order per screenshot: Save first, then Close */}
                 <button
                   type="button"
                   onClick={handleSave}
@@ -359,7 +358,7 @@ export default function ManageCategory() {
         </div>
       )}
 
-      {/* -------- Delete Confirmation Modal (wired up) -------- */}
+      {/* Delete Confirmation Modal */}
       {confirmOpen && (
         <div
           className="fixed inset-0 z-50"
@@ -381,10 +380,11 @@ export default function ManageCategory() {
                     <h3 className="text-lg font-semibold text-gray-800">
                       Are you sure you want to delete this record?
                     </h3>
-                    {pendingDeleteIndex > -1 && (
+                    {pendingDeleteId && (
                       <p className="mt-1 text-sm text-gray-600">
                         <span className="font-medium">
-                          {categories[pendingDeleteIndex]?.name || "This category"}
+                          {categories.find((c) => c.id === pendingDeleteId)
+                            ?.name || "This category"}
                         </span>{" "}
                         will be permanently removed from the list.
                       </p>
@@ -414,7 +414,7 @@ export default function ManageCategory() {
         </div>
       )}
 
-      {/* -------- Saved Toast (2s) -------- */}
+      {/* Saved Toast */}
       {savedToast && (
         <div className="fixed bottom-6 right-6 z-[60] pointer-events-none animate-[toastIn_.25s_ease-out]">
           <div className="pointer-events-auto flex items-start gap-3 rounded-xl bg-white shadow-lg ring-1 ring-black/5 px-4 py-3">
@@ -423,7 +423,9 @@ export default function ManageCategory() {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">Saved</p>
-              <p className="text-xs text-gray-600">Category has been updated.</p>
+              <p className="text-xs text-gray-600">
+                Category has been updated.
+              </p>
             </div>
           </div>
         </div>

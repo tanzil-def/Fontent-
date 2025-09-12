@@ -46,7 +46,7 @@ const BookDetails = () => {
   const fetchRelatedBooks = async (categoryId, author) => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`http://127.0.0.1:8000/api/book/list`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
