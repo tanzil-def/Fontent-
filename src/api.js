@@ -5,7 +5,7 @@ import axios from "axios";
 const BASE_URL = "http://127.0.0.1:8000/api/";
 
 // Initial token (hardcoded for now)
-let TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1NzY5MjIyNn0.5f7q4-gApQ0ZTycMCEanQu_-pbXTkCk8vTPgrAXHpIs";
+let TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1ODAxMDAwNX0.SJAC_2hpfw7fR63z-TWLXA0lGvGzhttz_QdLcuhtQ3A";
 
 // Create an Axios instance
 const api = axios.create({

@@ -1,557 +1,9 @@
-// // src/pages/ManageFeature/ManageFeature.jsx
-// import { useEffect, useMemo, useState } from "react";
-// import {
-//   RefreshCcw,
-//   Loader2,
-//   CheckCircle2,
-//   AlertTriangle,
-//   Image as ImageIcon,
-//   BookOpen,
-//   Search,
-//   Filter,
-// } from "lucide-react";
-// import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
-// import sectionedBooks from "../../data/sampleBooks";
-// import Pagination from "../../components/Pagination/Pagination";
-
-// /* ---------- Smart API base + helpers ----------
-//  * Priority:
-//  * 1) VITE_API_URL or VITE_BACKEND_URL (e.g. http://localhost:8000/api)
-//  * 2) If running on localhost:5173, default to http://localhost:8000/api
-//  * 3) Otherwise fallback to /api (requires proxy in Vite)
-//  */
-// const RAW_ENV =
-//   (import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "").trim();
-// const ENV_BASE = RAW_ENV.replace(/\/+$/, "");
-
-// const isDevLocal5173 =
-//   typeof window !== "undefined" &&
-//   window.location.hostname === "localhost" &&
-//   window.location.port === "5173";
-
-// // default dev backend if none provided (prevents 5173 404)
-// const DEFAULT_DEV_API = "http://localhost:8000/api";
-// const API_BASE = ENV_BASE || (isDevLocal5173 ? DEFAULT_DEV_API : "") || ""; // "" => use /api
-
-// const base = (p) => (API_BASE ? `${API_BASE}${p}` : `/api${p}`);
-
-// /* Build all candidate endpoints for add/remove to handle different backends */
-// const addCandidates = (bookId) => [
-//   base(`/featured-books/${encodeURIComponent(bookId)}/add`), // style A
-//   base(`/featured-books/add/${encodeURIComponent(bookId)}`), // style B
-//   base(`/featured-books/${encodeURIComponent(bookId)}`), // style C (body-driven or idempotent)
-// ];
-
-// const removeCandidates = (featuredId) => [
-//   base(`/featured-books/remove/${encodeURIComponent(featuredId)}`), // style A
-//   base(`/featured-books/${encodeURIComponent(featuredId)}/remove`), // style B
-//   base(`/featured-books/${encodeURIComponent(featuredId)}`), // style C (DELETE by id)
-// ];
-
-// const listCandidates = () => [
-//   base(`/featured-books/list`),
-//   base(`/featured-books`),
-// ];
-
-// /* Try multiple URLs until one succeeds (2xx). Optionally send JSON body. */
-// async function fetchWithFallback(method, urls, body) {
-//   let lastErr;
-//   for (const url of urls) {
-//     try {
-//       const res = await fetch(url, {
-//         method,
-//         headers: body ? { "Content-Type": "application/json" } : undefined,
-//         body: body ? JSON.stringify(body) : undefined,
-//       });
-//       if (res.ok) return res;
-//       // Some backends return 204 No Content on success
-//       if (res.status === 204) return res;
-//       lastErr = new Error(`HTTP ${res.status} at ${url}`);
-//     } catch (e) {
-//       lastErr = e;
-//     }
-//   }
-//   throw lastErr || new Error("All endpoints failed");
-// }
-
-// /* ---------- Small UI bits ---------- */
-
-// function Switch({ checked, onChange, disabled }) {
-//   return (
-//     <label
-//       className="inline-flex items-center select-none"
-//       onClick={(e) => e.stopPropagation()}
-//       onMouseDown={(e) => e.stopPropagation()}
-//       onTouchStart={(e) => e.stopPropagation()}
-//     >
-//       <span className="relative inline-flex items-center">
-//         <input
-//           type="checkbox"
-//           className="sr-only peer"
-//           checked={!!checked}
-//           onChange={(e) => {
-//             e.stopPropagation();
-//             onChange?.(e.target.checked);
-//           }}
-//           disabled={disabled}
-//         />
-//         <span
-//           className={`
-//             h-5 w-9 rounded-full transition-colors
-//             ${checked ? "bg-green-600" : "bg-red-500"}
-//             ${disabled ? "opacity-60" : ""}
-//             relative after:content-[''] after:absolute after:top-0.5 after:left-0.5
-//             after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform
-//             ${checked ? "peer-checked:after:translate-x-4 after:translate-x-4" : ""}
-//           `}
-//         />
-//       </span>
-//     </label>
-//   );
-// }
-
-// /* ---------- Helpers to normalize data ---------- */
-
-// const normalizeFeatured = (item) => {
-//   const book = item?.book || item;
-//   return {
-//     featuredId: String(item?.id ?? book?.id ?? Math.random().toString(36).slice(2)),
-//     bookId: String(item?.book_id ?? item?.bookId ?? book?.book_id ?? item?.id ?? ""),
-//     title: book?.title || "—",
-//     author: book?.author || book?.authors || "—",
-//     category: book?.category || "—",
-//   };
-// };
-
-// const normalizeCatalog = (b, fallbackIndex) => {
-//   const cover =
-//     b.coverImage || b.image || "https://dummyimage.com/160x160/e5e7eb/9ca3af&text=📘";
-//   return {
-//     id: String(b.id ?? b.book_id ?? fallbackIndex ?? Math.random().toString(36).slice(2)),
-//     title: b.title || "—",
-//     author: b.author || b.authors || "—",
-//     category: b.category || "—",
-//     cover,
-//   };
-// };
-
-// /* ---------- Page ---------- */
-
-// export default function ManageFeature() {
-//   useEffect(() => {
-//     document.title = "• Featured Books";
-//   }, []);
-
-//   // server state
-//   const [loading, setLoading] = useState(false);
-//   const [featured, setFeatured] = useState([]); // array of normalizeFeatured
-
-//   // catalog (cards)
-//   const [catalog, setCatalog] = useState([]); // array of normalizeCatalog
-//   const [search, setSearch] = useState("");
-//   const [view, setView] = useState("all"); // all | checked | unchecked
-
-//   // per-card pending toggles
-//   const [pendingById, setPendingById] = useState({});
-
-//   // remove confirm
-//   const [confirm, setConfirm] = useState({ open: false, book: null });
-
-//   // toast
-//   const [toast, setToast] = useState({ show: false, msg: "" });
-//   const showToast = (msg) => {
-//     setToast({ show: true, msg });
-//     setTimeout(() => setToast({ show: false, msg: "" }), 1600);
-//   };
-
-//   // pagination
-//   const [page, setPage] = useState(1);
-//   const PAGE_SIZE = 12;
-
-//   /* -------- load featured list (tries multiple endpoints) -------- */
-//   const fetchFeatured = async (silent = false) => {
-//     if (!silent) setLoading(true);
-//     try {
-//       const res = await fetchWithFallback("GET", listCandidates());
-//       // Some backends return [] or {data:[]}
-//       const data = await res.json().catch(() => []);
-//       const arr = Array.isArray(data) ? data : data?.data || [];
-//       setFeatured(arr.map(normalizeFeatured));
-//     } catch {
-//       setFeatured([]);
-//     } finally {
-//       if (!silent) setLoading(false);
-//     }
-//   };
-
-//   /* -------- build catalog from books.json + sectionedBooks fallback -------- */
-//   useEffect(() => {
-//     (async () => {
-//       try {
-//         const url = `${import.meta.env.BASE_URL}books.json`;
-//         const res = await fetch(url);
-//         const data = res.ok ? await res.json() : [];
-//         const list = Array.isArray(data) ? data : [];
-//         const normalized = list.map((b, i) => normalizeCatalog(b, i));
-//         if (normalized.length) {
-//           setCatalog(normalized);
-//           return;
-//         }
-//       } catch {
-//         /* fall back to sectionedBooks */
-//       }
-
-//       // fallback to sectionedBooks
-//       const pool = [];
-//       if (sectionedBooks && typeof sectionedBooks === "object") {
-//         let i = 0;
-//         Object.values(sectionedBooks).forEach((arr) => {
-//           if (Array.isArray(arr)) {
-//             arr.forEach((b) => pool.push(normalizeCatalog(b, i++)));
-//           }
-//         });
-//       }
-//       setCatalog(pool);
-//     })();
-
-//     fetchFeatured();
-//     // eslint-disable-next-line react-hooks/exhaustive-deps
-//   }, []);
-
-//   /* -------- fast lookups -------- */
-//   const featuredMapByBookId = useMemo(() => {
-//     const m = new Map();
-//     featured.forEach((f) => m.set(f.bookId, f));
-//     return m;
-//   }, [featured]);
-
-//   /* -------- filtered + paged catalog -------- */
-//   const filteredCatalog = useMemo(() => {
-//     const q = search.trim().toLowerCase();
-//     const baseList = catalog.filter((c) => {
-//       if (!q) return true;
-//       return (
-//         c.title.toLowerCase().includes(q) ||
-//         c.author.toLowerCase().includes(q) ||
-//         c.category.toLowerCase().includes(q) ||
-//         c.id.toLowerCase().includes(q)
-//       );
-//     });
-
-//     if (view === "checked") return baseList.filter((c) => featuredMapByBookId.has(c.id));
-//     if (view === "unchecked") return baseList.filter((c) => !featuredMapByBookId.has(c.id));
-//     return baseList;
-//   }, [catalog, search, view, featuredMapByBookId]);
-
-//   // pagination state
-//   useEffect(() => setPage(1), [search, view]);
-//   const totalItems = filteredCatalog.length;
-//   const startIdx = (page - 1) * PAGE_SIZE;
-//   const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
-//   const pageItems = filteredCatalog.slice(startIdx, endIdx);
-
-//   const checkedCount = featured.length;
-
-//   /* -------- actions: check/uncheck with fallback URLs -------- */
-//   const setPending = (bookId, v) =>
-//     setPendingById((prev) => ({ ...prev, [bookId]: v }));
-
-//   const handleCheck = async (book) => {
-//     if (featuredMapByBookId.has(book.id)) return;
-//     setPending(book.id, true);
-//     try {
-//       // Try multiple endpoint shapes; some backends expect action in body
-//       const res = await fetchWithFallback("POST", addCandidates(book.id), { action: "add" });
-//       // If backend returns JSON, fine; if 204, also fine
-//       if (res.status !== 204) {
-//         await res.json().catch(() => null);
-//       }
-//       await fetchFeatured(true); // silent refresh from server (authoritative)
-//       showToast("Book marked as Featured.");
-//     } catch {
-//       // surface a helpful one-liner just once
-//       if (isDevLocal5173 && !ENV_BASE) {
-//         showToast("Backend not reachable from 5173. Start http://localhost:8000 or set VITE_API_URL.");
-//       } else {
-//         showToast("Add failed. Check backend route or VITE_API_URL.");
-//       }
-//     } finally {
-//       setPending(book.id, false);
-//     }
-//   };
-
-//   const askUncheck = (book) => setConfirm({ open: true, book });
-//   const closeConfirm = () => setConfirm({ open: false, book: null });
-
-//   const doUncheck = async () => {
-//     const book = confirm.book;
-//     if (!book) return;
-//     const f = featuredMapByBookId.get(book.id);
-//     if (!f) {
-//       closeConfirm();
-//       return;
-//     }
-//     setPending(book.id, true);
-//     try {
-//       const res = await fetchWithFallback("DELETE", removeCandidates(f.featuredId));
-//       if (res.status !== 204) {
-//         await res.json().catch(() => null);
-//       }
-//       await fetchFeatured(true);
-//       showToast("Removed from Featured.");
-//       closeConfirm();
-//     } catch {
-//       if (isDevLocal5173 && !ENV_BASE) {
-//         showToast("Backend not reachable from 5173. Start http://localhost:8000 or set VITE_API_URL.");
-//       } else {
-//         showToast("Remove failed. Check backend route or VITE_API_URL.");
-//       }
-//     } finally {
-//       setPending(book.id, false);
-//     }
-//   };
-
-//   /* -------- UI -------- */
-//   return (
-//     <div className="min-h-screen flex bg-gray-100">
-//       <Sidebar />
-
-//       <main className="flex-1 p-4 md:p-6 space-y-6">
-//         {/* Header */}
-//         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-//           <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-//             <span className="text-gray-400 font-normal">• Featured Books</span>
-//           </h1>
-
-//           <div className="flex items-center gap-2">
-//             <button
-//               type="button"
-//               onClick={() => fetchFeatured()}
-//               disabled={loading}
-//               className="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 shadow hover:bg-gray-200 disabled:opacity-60"
-//             >
-//               {loading ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
-//               Refresh
-//             </button>
-//           </div>
-//         </header>
-
-//         {/* Toolbar: search + filters + counts */}
-//         <section className="bg-white rounded-lg shadow border border-gray-200 p-4 md:p-6">
-//           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-//             <div className="flex-1">
-//               <div className="relative">
-//                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-//                 <input
-//                   value={search}
-//                   onChange={(e) => setSearch(e.target.value)}
-//                   placeholder="Search by title, author, category, or ID…"
-//                   className="w-full rounded border border-gray-300 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-//                 />
-//               </div>
-//             </div>
-
-//             <div className="flex items-center gap-2">
-//               <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-//                 <button
-//                   type="button"
-//                   onClick={() => setView("all")}
-//                   className={`px-3 py-1.5 text-sm ${view === "all" ? "bg-gray-100 text-gray-800 font-medium" : "text-gray-700"}`}
-//                 >
-//                   All
-//                 </button>
-//                 <button
-//                   type="button"
-//                   onClick={() => setView("checked")}
-//                   className={`px-3 py-1.5 text-sm ${view === "checked" ? "bg-gray-100 text-gray-800 font-medium" : "text-gray-700"}`}
-//                 >
-//                   Checked
-//                 </button>
-//                 <button
-//                   type="button"
-//                   onClick={() => setView("unchecked")}
-//                   className={`px-3 py-1.5 text-sm ${view === "unchecked" ? "bg-gray-100 text-gray-800 font-medium" : "text-gray-700"}`}
-//                 >
-//                   Unchecked
-//                 </button>
-//               </div>
-
-//               <span className="hidden md:inline-flex items-center gap-1 text-sm text-gray-600">
-//                 <Filter size={16} />
-//                 <span>Featured:</span>
-//                 <span className="font-semibold">{checkedCount}</span>
-//               </span>
-//             </div>
-//           </div>
-//         </section>
-
-//         {/* Cards grid */}
-//         <section className="bg-white rounded-lg shadow border border-gray-200 p-4 md:p-6">
-//           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-//             {loading &&
-//               Array.from({ length: 8 }).map((_, i) => (
-//                 <div key={`sk-${i}`} className="rounded-lg border border-gray-200 p-4 animate-pulse">
-//                   <div className="h-28 w-full rounded bg-gray-100 mb-3" />
-//                   <div className="h-4 bg-gray-100 rounded w-3/5 mb-2" />
-//                   <div className="h-3 bg-gray-100 rounded w-2/5 mb-4" />
-//                   <div className="h-9 bg-gray-100 rounded" />
-//                 </div>
-//               ))}
-
-//             {!loading && pageItems.length === 0 && (
-//               <div className="col-span-full text-sm text-gray-500">No books match your search.</div>
-//             )}
-
-//             {!loading &&
-//               pageItems.map((b) => {
-//                 const checked = featuredMapByBookId.has(b.id);
-//                 const pending = !!pendingById[b.id];
-
-//                 return (
-//                   <article
-//                     key={b.id}
-//                     className={`rounded-lg border p-4 cursor-pointer transition
-//                       ${checked ? "border-sky-300 ring-1 ring-sky-100 bg-sky-50/30" : "border-gray-200 bg-white"}`}
-//                     onClick={() => (checked ? askUncheck(b) : handleCheck(b))}
-//                   >
-//                     <div className="h-28 w-full rounded bg-gray-50 overflow-hidden ring-1 ring-gray-200 flex items-center justify-center">
-//                       {b.cover ? (
-//                         <img src={b.cover} alt={b.title} className="h-full w-full object-cover" />
-//                       ) : (
-//                         <ImageIcon className="text-gray-400" size={24} />
-//                       )}
-//                     </div>
-
-//                     <div className="min-h-[56px] mt-3">
-//                       <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-//                         <BookOpen size={15} className="text-gray-400" />
-//                         <span className="line-clamp-2">{b.title}</span>
-//                       </h3>
-//                       <p className="text-xs text-gray-600 mt-1">{b.author}</p>
-//                       <p className="text-xs text-gray-500">{b.category}</p>
-//                     </div>
-
-//                     <div className="flex items-center justify-between mt-3">
-//                       <span
-//                         className={`text-[11px] px-2 py-0.5 rounded-full ring-1
-//                           ${checked ? "bg-green-50 text-green-700 ring-green-200" : "bg-red-50 text-red-700 ring-red-200"}`}
-//                       >
-//                         {checked ? "Checked" : "Unchecked"}
-//                       </span>
-
-//                       <Switch
-//                         checked={checked}
-//                         disabled={pending}
-//                         onChange={(on) => {
-//                           if (on) handleCheck(b);
-//                           else askUncheck(b);
-//                         }}
-//                       />
-//                     </div>
-//                   </article>
-//                 );
-//               })}
-//           </div>
-
-//           {/* Same-to-same pagination (shared component) */}
-//           {totalItems > 0 && (
-//             <Pagination
-//               page={page}
-//               setPage={setPage}
-//               totalItems={totalItems}
-//               pageSize={PAGE_SIZE}
-//               className="mt-6"
-//             />
-//           )}
-//         </section>
-//       </main>
-
-//       {/* ===== Uncheck Confirmation Modal ===== */}
-//       {confirm.open && (
-//         <div
-//           className="fixed inset-0 z-50"
-//           aria-modal="true"
-//           role="dialog"
-//           onClick={(e) => {
-//             if (e.target === e.currentTarget) closeConfirm();
-//           }}
-//         >
-//           <div className="absolute inset-0 bg-black/50 opacity-0 animate-[fadeIn_.2s_ease-out_forwards]" />
-//           <div className="absolute inset-0 flex items-center justify-center px-4">
-//             <div className="w-full max-w-md rounded-lg bg-white shadow-lg border border-gray-200 opacity-0 translate-y-2 animate-[popIn_.22s_ease-out_forwards]">
-//               <div className="px-6 py-5">
-//                 <div className="flex items-start gap-3">
-//                   <div className="mt-0.5">
-//                     <AlertTriangle className="text-amber-500" size={24} />
-//                   </div>
-//                   <div>
-//                     <h3 className="text-lg font-semibold text-gray-800">Remove from Featured?</h3>
-//                     {confirm.book && (
-//                       <p className="mt-1 text-sm text-gray-600">
-//                         <span className="font-medium">{confirm.book.title}</span> will be removed
-//                         from the featured list.
-//                       </p>
-//                     )}
-//                   </div>
-//                 </div>
-//               </div>
-
-//               <div className="px-6 py-4 bg-white border-t border-gray-200 flex justify-end gap-3">
-//                 <button
-//                   type="button"
-//                   onClick={closeConfirm}
-//                   className="rounded-md px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-//                 >
-//                   Cancel
-//                 </button>
-//                 <button
-//                   type="button"
-//                   onClick={doUncheck}
-//                   className="rounded-md px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 focus:ring-2 focus:ring-red-400"
-//                 >
-//                   Remove
-//                 </button>
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* ===== Toast ===== */}
-//       {toast.show && (
-//         <div className="fixed bottom-6 right-6 z-[60] pointer-events-none animate-[toastIn_.25s_ease-out]">
-//           <div className="pointer-events-auto flex items-start gap-3 rounded-xl bg-white shadow-lg ring-1 ring-black/5 px-4 py-3">
-//             <div className="mt-0.5">
-//               <CheckCircle2 className="text-green-600" size={22} />
-//             </div>
-//             <div>
-//               <p className="text-sm font-semibold text-gray-900">Success</p>
-//               <p className="text-xs text-gray-600">{toast.msg}</p>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-
-//       <style>{`
-//         @keyframes fadeIn { to { opacity: 1 } }
-//         @keyframes popIn { to { opacity: 1; transform: translateY(0) } }
-//         @keyframes toastIn {
-//           from { opacity: 0; transform: translateY(8px) scale(.98) }
-//           to   { opacity: 1; transform: translateY(0) scale(1) }
-//         }
-//       `}</style>
-//     </div>
-//   );
-// }
-
-// src/pages/ManageFeature/ManageFeature.jsx
-// src/pages/ManageFeature/ManageFeature.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
+  RefreshCcw,
   Loader2,
   CheckCircle2,
   AlertTriangle,
-  Image as ImageIcon,
   BookOpen,
   Search,
   Filter,
@@ -559,56 +11,46 @@ import {
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
 import Pagination from "../../components/Pagination/Pagination";
 
-const API_URL = "http://127.0.0.1:8000/api/featured/";
-const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1NzY4NDQ5Mn0.rjh8HxChSFvwNcVWpcpGuz23WsRDyHIYMmUBoHcUzhY";
+const API_BASE = "http://127.0.0.1:8000";
 
 function Switch({ checked, onChange, disabled }) {
   return (
-    <label
-      className="inline-flex items-center select-none"
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-    >
-      <span className="relative inline-flex items-center">
-        <input
-          type="checkbox"
-          className="sr-only peer"
-          checked={!!checked}
-          onChange={(e) => {
-            e.stopPropagation();
-            onChange?.(e.target.checked);
-          }}
-          disabled={disabled}
-        />
-        <span
-          className={`
-            h-5 w-9 rounded-full transition-colors
-            ${checked ? "bg-green-600" : "bg-red-500"}
-            ${disabled ? "opacity-60" : ""}
-            relative after:content-[''] after:absolute after:top-0.5 after:left-0.5
-            after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform
-            ${checked ? "peer-checked:after:translate-x-4 after:translate-x-4" : ""}
-          `}
-        />
-      </span>
+    <label className="inline-flex items-center select-none cursor-pointer">
+      <input
+        type="checkbox"
+        className="sr-only peer"
+        checked={!!checked}
+        onChange={onChange}
+        disabled={disabled}
+      />
+      <span
+        className={`
+          w-10 h-5 rounded-full transition-colors
+          ${checked ? "bg-green-600" : "bg-gray-300"}
+          relative after:content-[''] after:absolute after:top-0.5 after:left-0.5
+          after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-md after:transition-transform
+          ${checked ? "after:translate-x-5" : ""}
+        `}
+      />
     </label>
   );
 }
 
-const normalizeCatalog = (b) => ({
-  id: String(b.book_id ?? b.id),
-  title: b.title || "—",
-  author: b.author || "—",
-  category: b.category_id ? String(b.category_id) : "—",
-  cover: b.cover || "https://dummyimage.com/160x160/e5e7eb/9ca3af&text=📘",
-  featured_id: b.id, // backend feature ID
+const normalizeFeatured = (item) => ({
+  featuredId: String(item.id),
+  bookId: String(item.book_id),
+  title: item.title || "Untitled",
+  author: item.author || "Unknown",
+  category: item.category || "General",
+  cover: item.cover || "/placeholder_book.jpg",
 });
 
 export default function ManageFeature() {
-  useEffect(() => { document.title = "• Featured Books"; }, []);
+  useEffect(() => {
+    document.title = "Manage Featured Books";
+  }, []);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [featured, setFeatured] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [search, setSearch] = useState("");
@@ -621,249 +63,256 @@ export default function ManageFeature() {
 
   const showToast = (msg) => {
     setToast({ show: true, msg });
-    setTimeout(() => setToast({ show: false, msg: "" }), 1600);
+    setTimeout(() => setToast({ show: false, msg: "" }), 2000);
   };
 
   const fetchFeatured = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}?skip=0&limit=100`, {
-        headers: { Authorization: `Bearer ${TOKEN}` },
-      });
-      const data = await res.json();
-      const books = data.map(normalizeCatalog);
-      setFeatured(books);
-      setCatalog(books); // For simplicity, using featured as catalog
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to fetch featured books");
+      const response = await fetch(`${API_BASE}/api/featured/?skip=0&limit=100`);
+      const data = await response.json();
+      setFeatured(data.map(normalizeFeatured));
+    } catch (e) {
+      showToast("Failed to load featured books");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchFeatured(); }, []);
+  const fetchCatalog = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/book/list`);
+      const data = await response.json();
+      setCatalog(
+        data.map((b) => ({
+          id: String(b.id),
+          title: b.title,
+          author: b.author,
+          category: b.category_id || "General",
+          cover: b.cover || "/placeholder_book.jpg",
+        }))
+      );
+    } catch (e) {
+      showToast("Failed to load catalog");
+    }
+  };
 
-  const featuredMapByBookId = useMemo(() => {
-    const m = new Map();
-    featured.forEach((f) => m.set(f.id, f));
-    return m;
+  useEffect(() => {
+    fetchFeatured();
+    fetchCatalog();
+  }, []);
+
+  const featuredMap = useMemo(() => {
+    const map = new Map();
+    featured.forEach((item) => map.set(item.bookId, item));
+    return map;
   }, [featured]);
 
   const filteredCatalog = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const baseList = catalog.filter((c) => {
-      if (!q) return true;
-      return (
-        c.title.toLowerCase().includes(q) ||
-        c.author.toLowerCase().includes(q) ||
-        c.category.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q)
-      );
-    });
-    if (view === "checked") return baseList.filter((c) => featuredMapByBookId.has(c.id));
-    if (view === "unchecked") return baseList.filter((c) => !featuredMapByBookId.has(c.id));
-    return baseList;
-  }, [catalog, search, view, featuredMapByBookId]);
+    const q = search.toLowerCase();
+    const list = catalog.filter(
+      (b) =>
+        !q ||
+        b.title.toLowerCase().includes(q) ||
+        b.author.toLowerCase().includes(q) ||
+        b.category.toLowerCase().includes(q)
+    );
+    if (view === "checked") return list.filter((b) => featuredMap.has(b.id));
+    if (view === "unchecked") return list.filter((b) => !featuredMap.has(b.id));
+    return list;
+  }, [catalog, search, view, featuredMap]);
 
   useEffect(() => setPage(1), [search, view]);
-  const totalItems = filteredCatalog.length;
-  const startIdx = (page - 1) * PAGE_SIZE;
-  const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
-  const pageItems = filteredCatalog.slice(startIdx, endIdx);
-  const checkedCount = featured.length;
 
-  const setPending = (bookId, v) =>
-    setPendingById((prev) => ({ ...prev, [bookId]: v }));
+  const pageItems = filteredCatalog.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleCheck = async (book) => {
-    if (featuredMapByBookId.has(book.id)) return;
+  const setPending = (id, v) => setPendingById((prev) => ({ ...prev, [id]: v }));
+
+  const addFeatured = async (book) => {
     setPending(book.id, true);
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetch(`${API_BASE}/api/featured/`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${TOKEN}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ book_id: book.id }),
       });
-      const data = await res.json();
-      const newBook = normalizeCatalog(data);
-      setFeatured((prev) => [...prev, newBook]);
-      showToast("Book marked as Featured.");
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to mark as Featured");
+      if (res.ok) {
+        showToast("Book added to featured");
+        fetchFeatured();
+      } else {
+        showToast("Failed to add book");
+      }
+    } catch {
+      showToast("Failed to add book");
     } finally {
       setPending(book.id, false);
     }
   };
 
-  const askUncheck = (book) => setConfirm({ open: true, book });
-  const closeConfirm = () => setConfirm({ open: false, book: null });
-
-  const doUncheck = async () => {
-    const book = confirm.book;
-    if (!book) return;
-    setPending(book.id, true);
+  const removeFeatured = async (featuredId) => {
     try {
-      await fetch(`${API_URL}${book.featured_id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${TOKEN}` },
-      });
-      setFeatured((prev) => prev.filter((f) => f.id !== book.id));
-      showToast("Removed from Featured.");
-      closeConfirm();
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to remove Featured");
-    } finally {
-      setPending(book.id, false);
+      const res = await fetch(`${API_BASE}/api/featured/${featuredId}`, { method: "DELETE" });
+      if (res.ok) {
+        showToast("Removed from featured");
+        fetchFeatured();
+      } else {
+        showToast("Failed to remove book");
+      }
+    } catch {
+      showToast("Failed to remove book");
     }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Loader2 className="animate-spin" size={36} />
-    </div>
-  );
+  const askRemove = (book) => {
+    const f = featuredMap.get(book.id);
+    if (f) setConfirm({ open: true, book: f });
+  };
+
+  const confirmRemove = () => {
+    if (confirm.book) removeFeatured(confirm.book.featuredId);
+    setConfirm({ open: false, book: null });
+  };
+
+  const cancelRemove = () => setConfirm({ open: false, book: null });
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100">
       <Sidebar />
-      <main className="flex-1 p-4 md:p-6 space-y-6">
-        {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <span className="text-gray-400 font-normal">• Featured Books</span>
-          </h1>
-        </header>
+      <main className="flex-1 p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Manage Featured Books</h1>
+          <button
+            onClick={() => {
+              fetchFeatured();
+              fetchCatalog();
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
+            Refresh
+          </button>
+        </div>
 
-        {/* Toolbar */}
-        <section className="bg-white rounded-lg shadow border border-gray-200 p-4 md:p-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by title, author, category, or ID…"
-                  className="w-full rounded border border-gray-300 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                <button type="button" onClick={() => setView("all")} className={`px-3 py-1.5 text-sm ${view === "all" ? "bg-gray-100 text-gray-800 font-medium" : "text-gray-700"}`}>All</button>
-                <button type="button" onClick={() => setView("checked")} className={`px-3 py-1.5 text-sm ${view === "checked" ? "bg-gray-100 text-gray-800 font-medium" : "text-gray-700"}`}>Checked</button>
-                <button type="button" onClick={() => setView("unchecked")} className={`px-3 py-1.5 text-sm ${view === "unchecked" ? "bg-gray-100 text-gray-800 font-medium" : "text-gray-700"}`}>Unchecked</button>
-              </div>
-
-              <span className="hidden md:inline-flex items-center gap-1 text-sm text-gray-600">
-                <Filter size={16} />
-                <span>Featured:</span>
-                <span className="font-semibold">{checkedCount}</span>
-              </span>
-            </div>
+        <div className="flex gap-4 mb-4 flex-col md:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search books..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-        </section>
-
-        {/* Cards */}
-        <section className="bg-white rounded-lg shadow border border-gray-200 p-4 md:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {pageItems.map((b) => {
-              const checked = featuredMapByBookId.has(b.id);
-              const pending = !!pendingById[b.id];
-
-              return (
-                <article
-                  key={b.id}
-                  className={`rounded-lg border p-4 cursor-pointer transition
-                    ${checked ? "border-sky-300 ring-1 ring-sky-100 bg-sky-50/30" : "border-gray-200 bg-white"}`}
-                  onClick={() => (checked ? askUncheck(b) : handleCheck(b))}
-                >
-                  <div className="w-full flex items-center justify-center">
-                    {b.cover ? (
-                      <img
-                        src={b.cover}
-                        alt={b.title}
-                        className="h-40 w-auto object-contain rounded-md drop-shadow-[0_14px_22px_rgba(0,0,0,0.08)] transition-transform duration-300 hover:scale-[1.02]"
-                      />
-                    ) : (
-                      <ImageIcon className="text-gray-400" size={24} />
-                    )}
-                  </div>
-
-                  <div className="min-h-[56px] mt-3 text-center">
-                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 justify-center">
-                      <BookOpen size={15} className="text-gray-400" />
-                      <span className="line-clamp-2">{b.title}</span>
-                    </h3>
-                    <p className="text-xs text-gray-600 mt-1">{b.author}</p>
-                    <p className="text-xs text-gray-500">{b.category}</p>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3">
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full ring-1 ${checked ? "bg-green-50 text-green-700 ring-green-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{checked ? "Checked" : "Unchecked"}</span>
-                    <Switch checked={checked} disabled={pending} onChange={(on) => { if(on) handleCheck(b); else askUncheck(b); }} />
-                  </div>
-                </article>
-              );
-            })}
+          <div className="flex gap-2">
+            {["all", "checked", "unchecked"].map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-sm rounded-lg ${
+                  view === v ? "bg-gray-200 font-semibold" : "bg-white"
+                }`}
+              >
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
           </div>
-          <Pagination page={page} setPage={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} className="mt-6" />
-        </section>
-      </main>
+        </div>
 
-      {/* Uncheck Modal */}
-      {confirm.open && (
-        <div className="fixed inset-0 z-50" aria-modal="true" role="dialog" onClick={(e) => e.target === e.currentTarget && closeConfirm()}>
-          <div className="absolute inset-0 bg-black/50 opacity-0 animate-[fadeIn_.2s_ease-out_forwards]" />
-          <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="w-full max-w-md rounded-lg bg-white shadow-lg border border-gray-200 opacity-0 translate-y-2 animate-[popIn_.22s_ease-out_forwards]">
-              <div className="px-6 py-5">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="text-amber-500" size={24} />
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">Remove from Featured?</h3>
-                    {confirm.book && (<p className="mt-1 text-sm text-gray-600"><span className="font-medium">{confirm.book.title}</span> will be removed from the featured list.</p>)}
-                  </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {pageItems.map((book) => {
+            const isFeatured = featuredMap.has(book.id);
+            const pending = !!pendingById[book.id];
+
+            return (
+              <div
+                key={book.id}
+                className={`border rounded-lg p-4 cursor-pointer transition hover:shadow-lg ${
+                  isFeatured ? "bg-green-50 border-green-300" : "bg-white border-gray-200"
+                }`}
+              >
+                <div className="w-full h-40 bg-gray-100 rounded-md flex items-center justify-center mb-3">
+                  <img
+                    src={book.cover}
+                    alt={book.title}
+                    className="h-full w-auto object-contain"
+                    onError={(e) => (e.target.src = "/placeholder_book.jpg")}
+                  />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-800">{book.title}</h3>
+                <p className="text-xs text-gray-600">{book.author}</p>
+                <p className="text-xs text-gray-500 mb-2">{book.category}</p>
+                <div className="flex justify-between items-center">
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-full ring-1 ${
+                      isFeatured ? "bg-green-100 text-green-700 ring-green-300" : "bg-red-100 text-red-700 ring-red-300"
+                    }`}
+                  >
+                    {isFeatured ? "Checked" : "Unchecked"}
+                  </span>
+                  <Switch
+                    checked={isFeatured}
+                    disabled={pending}
+                    onChange={(checked) => {
+                      if (checked) addFeatured(book);
+                      else askRemove(book);
+                    }}
+                  />
                 </div>
               </div>
-              <div className="px-6 py-4 bg-white border-t border-gray-200 flex justify-end gap-3">
-                <button type="button" onClick={closeConfirm} className="rounded-md px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
-                <button type="button" onClick={doUncheck} className="rounded-md px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 focus:ring-2 focus:ring-red-400">Remove</button>
+            );
+          })}
+        </div>
+
+        {pageItems.length === 0 && (
+          <div className="text-center py-8 text-gray-500">No books found.</div>
+        )}
+
+        {filteredCatalog.length > PAGE_SIZE && (
+          <Pagination
+            page={page}
+            setPage={setPage}
+            totalItems={filteredCatalog.length}
+            pageSize={PAGE_SIZE}
+            className="mt-6"
+          />
+        )}
+
+        {/* Confirm Modal */}
+        {confirm.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-md w-full">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertTriangle className="text-amber-500" size={24} />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Remove from Featured?</h3>
+                  <p className="text-sm text-gray-600">{confirm.book.title}</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button onClick={cancelRemove} className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRemove}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-500"
+                >
+                  Remove
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Toast */}
-      {toast.show && (
-        <div className="fixed bottom-6 right-6 z-[60] pointer-events-none animate-[toastIn_.25s_ease-out]">
-          <div className="pointer-events-auto flex items-start gap-3 rounded-xl bg-white shadow-lg ring-1 ring-black/5 px-4 py-3">
-            <CheckCircle2 className="text-green-600" size={22} />
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Success</p>
-              <p className="text-xs text-gray-600">{toast.msg}</p>
-            </div>
+        {/* Toast */}
+        {toast.show && (
+          <div className="fixed bottom-6 right-6 z-50 bg-white p-4 rounded-lg shadow-lg flex items-center gap-3 animate-slide-in">
+            <CheckCircle2 className="text-green-500" size={20} />
+            <span className="text-sm text-gray-700">{toast.msg}</span>
           </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes fadeIn { to { opacity: 1 } }
-        @keyframes popIn { to { opacity: 1; transform: translateY(0) } }
-        @keyframes toastIn {
-          from { opacity: 0; transform: translateY(8px) scale(.98) }
-          to   { opacity: 1; transform: translateY(0) scale(1) }
-        }
-      `}</style>
+        )}
+      </main>
     </div>
   );
 }
-
