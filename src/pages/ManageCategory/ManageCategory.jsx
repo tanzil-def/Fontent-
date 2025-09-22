@@ -20,8 +20,8 @@ const slugify = (s = "") =>
     .replace(/(^-|-$)+/g, "");
 
 // API configuration
-const API_BASE = "http://127.0.0.1:8000/api/categories"; // only URL
-const API_TOKEN = window.API_TOKEN || ""; // token is dynamically injected
+const API_BASE = import.meta.env.VITE_API_BASE_URL + "/categories";
+const API_TOKEN = import.meta.env.VITE_API_TOKEN || "";
 
 export default function ManageCategory() {
   useEffect(() => {

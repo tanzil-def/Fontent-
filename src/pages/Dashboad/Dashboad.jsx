@@ -1,10 +1,17 @@
+// src/pages/Dashboard/Dashboard.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
+  Upload,
   Users,
   BookOpen,
   HelpCircle,
   LogOut,
+  Library,
+  Layers,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
   Mail,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -17,23 +24,62 @@ export default function Dashboard() {
   }, []);
 
   const [stats, setStats] = useState({
-    borrowed: 0,
-    returned: 0,
-    overdue: 0,
-    totalBooks: 0,
-    newMembers: 0,
-    borrowsPending: 0,
+    borrowed_copies: 0,
+    returned_copies: 0,
+    pending_copies: 0,
+    total_copies: 0,
+    available_copies: 0,
   });
 
   const [requests, setRequests] = useState([]);
-  const [overdueHistory, setOverdueHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(() => new Date());
+  const [error, setError] = useState(null);
+  const [overdueBooks, setOverdueBooks] = useState([]);
+
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch stats
+        const statsResponse = await api.get("/borrow/stats");
+        setStats(statsResponse.data);
+
+        // Fetch pending requests
+        const pendingResponse = await api.get("/borrow/list");
+        const pendingRequests = pendingResponse.data.filter(
+          request => request.status === "REQUESTED"
+        );
+        setRequests(pendingRequests);
+
+        // Fetch overdue books
+        const overdueResponse = await api.get("/borrow/overdue");
+        setOverdueBooks(overdueResponse.data);
+
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+        setError("Failed to load dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  const dashboardItems = [
+    { label: "Borrowed Books", value: stats.borrowed_copies || 0 },
+    { label: "Returned Books", value: stats.returned_copies || 0 },
+    { label: "Borrows Pending", value: stats.pending_copies || 0 },
+    { label: "Total Books", value: stats.total_copies || 0 },
+    { label: "Available Books", value: stats.available_copies || 0 },
+  ];
 
   // Confirmation modal state
-  const [confirm, setConfirm] = useState({ open: false, type: null, index: -1 });
-  const openConfirm = (type, index) => setConfirm({ open: true, type, index });
-  const closeConfirm = () => setConfirm({ open: false, type: null, index: -1 });
+  const [confirm, setConfirm] = useState({ open: false, type: null, index: -1, id: null });
+  const openConfirm = (type, index, id) => setConfirm({ open: true, type, index, id });
+  const closeConfirm = () => setConfirm({ open: false, type: null, index: -1, id: null });
 
   // Toast (2s)
   const [toast, setToast] = useState({ show: false, type: "accept", message: "" });
@@ -42,93 +88,54 @@ export default function Dashboard() {
     setTimeout(() => setToast({ show: false, type, message: "" }), 2000);
   };
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch dashboard statistics
-        const statsResponse = await api.get("/api/deshbord/statistics");
-        const statsData = statsResponse.data;
-        setStats({
-          borrowed: statsData.borrowed_books || 0,
-          returned: statsData.returned_books || 0,
-          overdue: statsData.overdue_books || 0,
-          totalBooks: statsData.total_books || 0,
-          newMembers: statsData.new_members || 0,
-          borrowsPending: statsData.borrows_pending || 0,
-        });
+  // Handle accept/reject borrow request
+  const doConfirm = async () => {
+    const { type, index, id } = confirm;
+    
+    if (index < 0 || !id) {
+      console.log("Invalid confirm state:", confirm);
+      return;
+    }
 
-        // Fetch active borrows (for borrow requests)
-        const borrowsResponse = await api.get("/api/borrow/active");
-        setRequests(borrowsResponse.data || []);
-
-        // Fetch overdue borrows
-        const overdueResponse = await api.get("/api/borrow/overdue");
-        setOverdueHistory(overdueResponse.data || []);
-
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-
-    // Update time every second
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleBorrowAction = async (action, borrowId) => {
     try {
-      let endpoint = "";
+      const endpoint = type === "accept" ? "/borrow/accept" : "/borrow/reject";
       
-      if (action === "accept") {
-        endpoint = "/api/borrow/accept";
-      } else if (action === "reject") {
-        endpoint = "/api/borrow/reject";
-      }
-      
-      await api.put(endpoint, { borrow_id: borrowId });
-      
-      // Remove the request from the list
-      setRequests(prev => prev.filter(req => req.id !== borrowId));
-      showToast(action, `Request ${action}ed`);
-    } catch (error) {
-      console.error(`Failed to ${action} borrow request:`, error);
-      showToast("error", `Failed to ${action} request`);
-    }
-  };
+      await api.put(endpoint, { 
+        borrow_id: id,
+        status: type === "accept" ? "APPROVED" : "REJECTED"
+      });
 
-  const doConfirm = () => {
-    const { type, index } = confirm;
-    if (index > -1 && requests[index]) {
-      handleBorrowAction(type, requests[index].id);
+      // Remove from local state
+      setRequests(prev => prev.filter((_, i) => i !== index));
+      
+      showToast(type, type === "accept" ? "Request accepted successfully" : "Request rejected successfully");
+      
+      // Refresh stats
+      const statsResponse = await api.get("/borrow/stats");
+      setStats(statsResponse.data);
+
+    } catch (err) {
+      console.error("Failed to update borrow status:", err.response?.data || err);
+      showToast("error", "Failed to update borrow status");
     }
+
     closeConfirm();
-  };
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-GB');
   };
 
   // -------------------- WEEKLY LINE CHART --------------------
   const WEEK_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  // Keep your 3 series but name them Borrowed/Returned/Overdue (weekly base)
+  // Mock data for chart (you can replace with real API data later)
   const series = useMemo(
     () => [
-      { name: "Borrowed", color: "stroke-sky-500",   dot: "fill-sky-500",   values: [20, 55, 62, 28, 24, 68, 64] },
+      { name: "Borrowed", color: "stroke-sky-500", dot: "fill-sky-500", values: [20, 55, 62, 28, 24, 68, 64] },
       { name: "Returned", color: "stroke-amber-500", dot: "fill-amber-400", values: [48, 40, 30, 18, 22, 42, 58] },
-      { name: "Overdue",  color: "stroke-rose-500",  dot: "fill-rose-500",  values: [10, 30, 55, 58, 26, 40, 88] },
+      { name: "Overdue", color: "stroke-rose-500", dot: "fill-rose-500", values: [10, 30, 55, 58, 26, 40, 88] },
     ],
     []
   );
 
-  // Chart rendering code remains the same...
+  // Chart configuration
   const chartBox = { w: 720, h: 200, padX: 36, padY: 20 };
   const allVals = series.flatMap((s) => s.values);
   const yMax = Math.max(1, Math.ceil(Math.max(...allVals) / 10) * 10);
@@ -163,7 +170,6 @@ export default function Dashboard() {
       const len = el.getTotalLength();
       el.style.strokeDasharray = `${len}`;
       el.style.strokeDashoffset = `${len}`;
-      // reflow then animate
       el.getBoundingClientRect();
       el.style.transition = `stroke-dashoffset 900ms ease ${i * 140}ms`;
       el.style.strokeDashoffset = "0";
@@ -171,6 +177,11 @@ export default function Dashboard() {
   }, [paths.map((p) => p.d).join("|")]);
 
   // "Updated" timestamp
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const hh = String(now.getHours()).padStart(2, "0");
   const mm = String(now.getMinutes()).padStart(2, "0");
   const ss = String(now.getSeconds()).padStart(2, "0");
@@ -180,7 +191,30 @@ export default function Dashboard() {
       <div className="min-h-screen flex bg-gray-100">
         <Sidebar />
         <main className="flex-1 p-6 flex items-center justify-center">
-          <div className="text-gray-500">Loading dashboard data...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex bg-gray-100">
+        <Sidebar />
+        <main className="flex-1 p-6 flex items-center justify-center">
+          <div className="text-center text-red-600">
+            <AlertTriangle className="w-16 h-16 mx-auto mb-4" />
+            <p className="text-lg">{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700"
+            >
+              Retry
+            </button>
+          </div>
         </main>
       </div>
     );
@@ -188,20 +222,15 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex bg-gray-100">
+      {/* Sidebar */}
       <Sidebar />
 
+      {/* Main Content */}
       <main className="flex-1 p-6 space-y-6">
         {/* Top Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: "Borrowed Books", value: stats.borrowed },
-            { label: "Returned Books", value: stats.returned },
-            { label: "Overdue Books", value: stats.overdue },
-            { label: "Total Books", value: stats.totalBooks },
-            { label: "New Members", value: stats.newMembers },
-            { label: "Borrows Pending", value: stats.borrowsPending },
-          ].map((item, i) => (
-            <div key={i} className="bg-white rounded shadow p-4 text-center">
+          {dashboardItems.map((item, i) => (
+            <div key={i} className="bg-white rounded-lg shadow p-4 text-center">
               <p className="text-sm text-gray-500">{item.label}</p>
               <p className="text-xl font-bold text-gray-800">{item.value}</p>
             </div>
@@ -210,7 +239,8 @@ export default function Dashboard() {
 
         {/* Graph + Overdue */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded shadow p-4">
+          {/* Check-Out Statistics Chart */}
+          <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold mb-2">Check-Out Statistics</h3>
               <span className="text-xs text-gray-500">Updated {hh}:{mm}:{ss}</span>
@@ -224,7 +254,7 @@ export default function Dashboard() {
                 className="max-w-full"
                 aria-label="Weekly Dynamics Line Chart"
               >
-                {/* grid lines */}
+                {/* Grid lines */}
                 {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
                   const y = chartBox.padY + t * (chartBox.h - chartBox.padY * 2);
                   return (
@@ -240,7 +270,7 @@ export default function Dashboard() {
                   );
                 })}
 
-                {/* baseline */}
+                {/* Baseline */}
                 <line
                   x1={chartBox.padX}
                   x2={chartBox.w - chartBox.padX}
@@ -250,7 +280,7 @@ export default function Dashboard() {
                   strokeWidth="1"
                 />
 
-                {/* x labels */}
+                {/* X labels */}
                 {WEEK_LABELS.map((w, i) => (
                   <text
                     key={w}
@@ -264,7 +294,7 @@ export default function Dashboard() {
                   </text>
                 ))}
 
-                {/* animated lines + dots */}
+                {/* Animated lines + dots */}
                 {paths.map((p, idx) => (
                   <g key={idx}>
                     <path
@@ -290,7 +320,7 @@ export default function Dashboard() {
               </svg>
             </div>
 
-            {/* Weekly legend UNDER chart */}
+            {/* Weekly legend */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-6">
               {series.map((s) => (
                 <div key={s.name} className="flex items-start gap-3">
@@ -311,9 +341,9 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Overdue History */}
-          <div className="bg-white rounded shadow p-4">
-            <h3 className="font-semibold mb-2">Overdue History</h3>
+          {/* Overdue's History */}
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-semibold mb-2">Overdue's History</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b border-gray-200">
@@ -325,24 +355,24 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {overdueHistory.map((item, index) => (
-                  <tr key={index} className="border-b border-gray-200">
+                {overdueBooks.slice(0, 5).map((book, index) => (
+                  <tr key={book.id} className="border-b border-gray-200">
                     <td>{index + 1}</td>
-                    <td className="font-semibold">{item.book_title}</td>
-                    <td>{item.user_name}</td>
+                    <td className="font-semibold">{book.book?.title || "Unknown Book"}</td>
+                    <td>{book.user?.name || "Unknown User"}</td>
                     <td className="text-center">
                       <span className="inline-flex items-center justify-center gap-1 text-gray-700">
                         <Mail size={16} className="text-gray-500" />
-                        <span>{item.user_email}</span>
+                        <span>{book.user?.email || "No email"}</span>
                       </span>
                     </td>
-                    <td>{formatDate(item.due_date)}</td>
+                    <td>{book.due_date ? new Date(book.due_date).toLocaleDateString() : "N/A"}</td>
                   </tr>
                 ))}
-                {overdueHistory.length === 0 && (
+                {overdueBooks.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-gray-500">
-                      No overdue books at the moment.
+                    <td colSpan={5} className="py-4 text-center text-gray-500">
+                      No overdue books
                     </td>
                   </tr>
                 )}
@@ -352,21 +382,21 @@ export default function Dashboard() {
         </div>
 
         {/* Borrow Request */}
-        <div className="bg-white rounded shadow p-4">
+        <div className="bg-white rounded-lg shadow p-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-semibold">Borrow Requests</h3>
-            <Link to="/borrow/list" className="text-xs text-green-600 hover:underline">
+            <h3 className="font-semibold">Borrow Request</h3>
+            <Link to="/borrow-requests" className="text-xs text-green-600 hover:underline">
               View All
             </Link>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left border-b border-gray-200">
-                <th>#</th>
+                <th className="w-10">#</th>
                 <th>Book name</th>
                 <th>User name</th>
                 <th>Borrowed Date</th>
-                <th>Due Date</th>
+                <th>Return Date</th>
                 <th className="text-center">Action</th>
               </tr>
             </thead>
@@ -374,22 +404,22 @@ export default function Dashboard() {
               {requests.map((request, index) => (
                 <tr key={request.id} className="border-b border-gray-200">
                   <td>{index + 1}</td>
-                  <td className="font-medium">{request.book_title}</td>
-                  <td>{request.user_name}</td>
-                  <td>{formatDate(request.borrow_date)}</td>
-                  <td>{formatDate(request.due_date)}</td>
+                  <td className="font-medium">{request.book?.title || "Unknown Book"}</td>
+                  <td>{request.user?.name || request.user?.username || "Unknown User"}</td>
+                  <td>{request.borrow_date ? new Date(request.borrow_date).toLocaleDateString() : "N/A"}</td>
+                  <td>{request.due_date ? new Date(request.due_date).toLocaleDateString() : "N/A"}</td>
                   <td className="text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
-                        onClick={() => openConfirm("accept", index)}
+                        onClick={() => openConfirm("accept", index, request.id)}
                         className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-400"
                       >
                         Accept
                       </button>
                       <button
                         type="button"
-                        onClick={() => openConfirm("reject", index)}
+                        onClick={() => openConfirm("reject", index, request.id)}
                         className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400 focus:outline-none focus:ring-2 focus:ring-red-300"
                       >
                         Reject
@@ -442,9 +472,9 @@ export default function Dashboard() {
                     {confirm.index > -1 && requests[confirm.index] && (
                       <p className="mt-1 text-sm text-gray-600">
                         <span className="font-medium">
-                          {requests[confirm.index].book_title}
+                          {requests[confirm.index].book?.title}
                         </span>{" "}
-                        — {requests[confirm.index].user_name}
+                        — {requests[confirm.index].user?.name}
                       </p>
                     )}
                   </div>
@@ -483,15 +513,13 @@ export default function Dashboard() {
             <div className="mt-0.5">
               {toast.type === "accept" ? (
                 <CheckCircle2 className="text-green-600" size={22} />
-              ) : toast.type === "reject" ? (
-                <XCircle className="text-red-600" size={22} />
               ) : (
                 <XCircle className="text-red-600" size={22} />
               )}
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {toast.type === "accept" ? "Accepted" : toast.type === "reject" ? "Rejected" : "Error"}
+                {toast.type === "accept" ? "Accepted" : "Rejected"}
               </p>
               <p className="text-xs text-gray-600">{toast.message}</p>
             </div>

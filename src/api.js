@@ -1,53 +1,26 @@
 // src/api.js
 import axios from "axios";
 
-// Base API URL
-const BASE_URL = "http://127.0.0.1:8000/api/";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+let TOKEN = localStorage.getItem("token") || null;
 
-// Initial token (hardcoded for now)
-let TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImV4cCI6MTc1ODAxMDAwNX0.SJAC_2hpfw7fR63z-TWLXA0lGvGzhttz_QdLcuhtQ3A";
-
-// Create an Axios instance
 const api = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    Authorization: `Bearer ${TOKEN}`,
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
-// Optional: function to update token dynamically after login
+// Update token
 export const setToken = (newToken) => {
   TOKEN = newToken;
-  localStorage.setItem("token", newToken); // store in localStorage
+  localStorage.setItem("token", newToken);
   api.defaults.headers.Authorization = `Bearer ${newToken}`;
 };
 
-// Helper function for authenticated API calls
-export const fetchWithAuth = async (endpoint, method = "GET", data = null) => {
-  try {
-    const response = await api({
-      url: endpoint,
-      method,
-      data,
-    });
-    return response.data;
-  } catch (err) {
-    console.error("API request error:", err);
-    throw err;
-  }
-};
+// Attach token automatically
+api.interceptors.request.use((config) => {
+  const token = TOKEN || localStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Axios request interceptor to always add token (for safety)
-api.interceptors.request.use(
-  (config) => {
-    const token = TOKEN || localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-export default api;
+export default api; // ✅ This is crucial

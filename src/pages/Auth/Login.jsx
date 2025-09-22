@@ -1,18 +1,14 @@
-// src/pages/Auth/Login.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../Providers/AuthProvider";
-import Navbar from "../../components/Navbar/Navbar";
-import Footer from "../../components/Footer/Footer";
-
-const API_BASE_URL = "http://127.0.0.1:8000";
+import { setToken } from "../../api";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState(""); // <-- changed from email
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
@@ -21,25 +17,23 @@ export default function Login() {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username, password }), // <-- send username
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
+      if (!res.ok) {
+        const errData = await res.json();
         throw new Error(errData.message || "Login failed");
       }
 
-      const data = await response.json();
+      const data = await res.json();
 
-      // Save token in localStorage
-      localStorage.setItem("token", data.token);
-      login(data.token); // update auth state
-      navigate("/dashboard"); // redirect to dashboard
+      login(data.token);
+      setToken(data.token);
+      localStorage.setItem("role", data.role);
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,45 +42,49 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar />
-      <main className="flex-1">
-        <div className="max-w-md mx-auto p-6">
-          <h1 className="text-2xl font-semibold mb-4">Login</h1>
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4 bg-white p-4 rounded-xl border"
-          >
-            {error && (
-              <p className="text-red-600 text-sm font-medium">{error}</p>
-            )}
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-md">
+        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Library Login</h1>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+
+          <div>
+            <label className="block text-gray-700 mb-1">Username</label>
             <input
               type="text"
-              placeholder="Username" // <-- changed
-              className="w-full border rounded-lg px-3 py-2"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              placeholder="Enter your username"
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 mb-1">Password</label>
             <input
               type="password"
-              placeholder="Password"
-              className="w-full border rounded-lg px-3 py-2"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              placeholder="Enter your password"
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg px-4 py-2 bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-70"
-            >
-              {loading ? "Logging in..." : "Login"}
-            </button>
-          </form>
-        </div>
-      </main>
-      <Footer />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-sky-600 text-white py-2 rounded-lg font-semibold hover:bg-sky-700 disabled:opacity-70"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-gray-500 text-sm">
+          Professional Library Management System
+        </p>
+      </div>
     </div>
   );
 }

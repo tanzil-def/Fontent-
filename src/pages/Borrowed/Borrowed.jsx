@@ -1,39 +1,52 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Trash2 } from "lucide-react";
-import axios from "axios";
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const TOKEN = import.meta.env.VITE_API_TOKEN;
+
+async function fetchAPI(endpoint, options = {}) {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${TOKEN}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.message || "API Error");
+  }
+  return res.json();
+}
 
 export default function Borrowed() {
   const [borrowedBooks, setBorrowedBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  // Fetch borrowed books from API
   useEffect(() => {
-    const fetchBorrowed = async () => {
-      setLoading(true);
+    async function loadBorrowedBooks() {
       try {
-        const res = await axios.get("http://127.0.0.1:8000/api/book/list", {
-          headers: {
-            Authorization: "Bearer <YOUR_TOKEN_HERE>",
-            Accept: "application/json",
-          },
-        });
-        // Example: Only show borrowed books (you can adjust filter as needed)
-        setBorrowedBooks(res.data || []);
+        const userId = 1; // replace with logged-in user ID dynamically if needed
+        const data = await fetchAPI(`/borrow/user/${userId}`);
+        setBorrowedBooks(data);
       } catch (err) {
-        console.error("Failed to fetch borrowed books:", err);
-        setBorrowedBooks([]);
-      } finally {
-        setLoading(false);
+        console.error(err.message);
       }
-    };
-    fetchBorrowed();
+    }
+    loadBorrowedBooks();
   }, []);
 
-  const handleRemove = (id) => {
-    const updated = borrowedBooks.filter((book) => book.id !== id);
-    setBorrowedBooks(updated);
-    // Optional: Update API or localStorage if needed
+  const handleRemove = async (id) => {
+    try {
+      await fetchAPI(`/borrow/return`, {
+        method: "PUT",
+        body: JSON.stringify({ id }),
+      });
+      setBorrowedBooks((prev) => prev.filter((book) => book.id !== id));
+    } catch (err) {
+      console.error(err.message);
+    }
   };
 
   const handleQuantityChange = (id, value) => {
@@ -58,14 +71,6 @@ export default function Borrowed() {
     );
     setBorrowedBooks(updated);
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-center">
-        <p className="text-lg text-gray-600 font-medium">Loading borrowed books...</p>
-      </div>
-    );
-  }
 
   if (borrowedBooks.length === 0) {
     return (
@@ -98,7 +103,7 @@ export default function Borrowed() {
           >
             <div className="flex items-center gap-4">
               <img
-                src={book.cover || book.coverImage || book.image}
+                src={book.coverImage || book.image}
                 alt={book.title}
                 className="w-24 h-32 object-cover rounded-md"
               />
@@ -106,7 +111,7 @@ export default function Borrowed() {
                 <h3 className="text-lg font-semibold text-gray-800">
                   {book.title}
                 </h3>
-                <p className="text-sm text-gray-500">{book.author || book.authors}</p>
+                <p className="text-sm text-gray-500">{book.authors}</p>
 
                 <div className="mt-2 flex items-center gap-3 text-sm">
                   <label htmlFor={`qty-${book.id}`} className="text-sm">

@@ -73,9 +73,6 @@
 //   );
 // }
 
-
-
-
 import { Star } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -101,7 +98,7 @@ export default function BookCard({ book, compact = false }) {
   // rating (stars only, no count)
   const rating = Number(book?.rating ?? 0);
 
-  // ----- title: break after 3 words (forces second line) -----
+  // ----- title: break after 3 words -----
   const formatTitle = (t) => {
     const title = safe(t, "Untitled").toString().trim();
     const words = title.split(/\s+/);
@@ -111,26 +108,33 @@ export default function BookCard({ book, compact = false }) {
     return `${first}\n${rest}`;
   };
 
+  // Use null for src if no image to avoid warning
+  const imgSrc = book?.coverImage || book?.image || null;
+
   return (
-    // Narrower fixed width so rows tend to show 4 full + a half-peek
     <div className="relative w-[200px] sm:w-[200px] snap-start group select-none flex-shrink-0">
-      {/* Cover image in a fixed-size box (no white background, just a light bottom shadow) */}
+      {/* Cover image */}
       <div className="mx-auto h-56 w-full flex items-center justify-center">
-        <img
-          src={safe(book?.coverImage, book?.image)}
-          alt={safe(book?.title, "Book cover")}
-          loading="lazy"
-          className="
-            h-full w-auto object-contain rounded-md
-            drop-shadow-[0_14px_22px_rgba(0,0,0,0.06)]
-            transition-transform duration-300 group-hover:scale-[1.03]
-          "
-        />
+        {imgSrc ? (
+          <img
+            src={imgSrc}
+            alt={safe(book?.title, "Book cover")}
+            loading="lazy"
+            className="
+              h-full w-auto object-contain rounded-md
+              drop-shadow-[0_14px_22px_rgba(0,0,0,0.06)]
+              transition-transform duration-300 group-hover:scale-[1.03]
+            "
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center bg-gray-100 rounded-md text-gray-400">
+            No Image
+          </div>
+        )}
       </div>
 
-      {/* Body — fixed min height to keep button in the same vertical spot */}
+      {/* Body */}
       <div className="px-1 pt-3 text-center flex flex-col items-center min-h-[170px]">
-        {/* Title (3-word line break retained) */}
         <h3 className="text-sm font-semibold text-gray-900 whitespace-pre-line line-clamp-2">
           {formatTitle(book?.title)}
         </h3>
@@ -139,7 +143,6 @@ export default function BookCard({ book, compact = false }) {
           <p className="mt-0.5 text-xs text-gray-600">{book.author}</p>
         )}
 
-        {/* Stars */}
         {!compact && (
           <div className="mt-2 flex items-center justify-center gap-1">
             {[...Array(5)].map((_, i) => (
@@ -153,14 +156,12 @@ export default function BookCard({ book, compact = false }) {
           </div>
         )}
 
-        {/* Status */}
         {!compact && (
           <div className={`mt-2 text-xs font-medium ${statusColor}`}>
             {statusText}
           </div>
         )}
 
-        {/* View Details button BELOW the status (centered, no overlay) */}
         {!compact && (
           <div className="mt-3">
             <Link
@@ -175,11 +176,6 @@ export default function BookCard({ book, compact = false }) {
     </div>
   );
 }
-
-
-
-
-
 
 // // src/components/BookCard/BookCard.jsx
 // import { useEffect, useRef, useState } from "react";
