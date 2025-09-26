@@ -44,7 +44,15 @@ export default function Dashboard() {
         
         // Fetch stats
         const statsResponse = await api.get("/borrow/stats");
-        setStats(statsResponse.data);
+        setStats({
+          borrowed_copies: statsResponse.data.activeBorrows,  
+          returned_copies: statsResponse.data.returnedBorrows,   // <-- comma added
+          pending_copies: statsResponse.data.totalBorrows - statsResponse.data.returnedBorrows,
+          total_copies: statsResponse.data.totalBorrows, 
+          available_copies: statsResponse.data.totalBorrows - statsResponse.data.activeBorrows, 
+      });
+
+     
 
         // Fetch pending requests
         const pendingResponse = await api.get("/borrow/list");

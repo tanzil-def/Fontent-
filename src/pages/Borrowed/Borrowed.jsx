@@ -3,17 +3,20 @@ import { Link } from "react-router-dom";
 import { Trash2 } from "lucide-react";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const TOKEN = import.meta.env.VITE_API_TOKEN;
 
+// ✅ fetchAPI now uses the logged-in user's token from localStorage
 async function fetchAPI(endpoint, options = {}) {
+  const token = localStorage.getItem("userToken");
+
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${token}`,
       ...(options.headers || {}),
     },
   });
+
   if (!res.ok) {
     const errorData = await res.json();
     throw new Error(errorData.message || "API Error");
@@ -27,7 +30,13 @@ export default function Borrowed() {
   useEffect(() => {
     async function loadBorrowedBooks() {
       try {
-        const userId = 1; // replace with logged-in user ID dynamically if needed
+        // ✅ Use the logged-in user's ID from localStorage
+        const userId = localStorage.getItem("userId");
+        if (!userId) {
+          console.error("No logged-in user found. Please login first.");
+          return;
+        }
+
         const data = await fetchAPI(`/borrow/user/${userId}`);
         setBorrowedBooks(data);
       } catch (err) {
