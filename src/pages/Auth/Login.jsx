@@ -1,11 +1,9 @@
 // src/pages/Login.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../Providers/AuthProvider";
-import { setToken } from "../../api";
+import api, { setToken } from "../../api";
 
 export default function Login() {
-  const { login } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -19,40 +17,25 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+      const res = await api.post("/auth/login", { username, password });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Login failed");
-      }
-
-      const data = await res.json();
-
-      // Ensure token exists
-      if (!data.token) {
+      if (!res.data.token) {
         throw new Error("Invalid login response: missing token");
       }
 
-      // Decode JWT to get user ID (sub) and role if backend does not provide user object
-      const payload = JSON.parse(atob(data.token.split(".")[1]));
-      const userId = payload.sub;
+      const token = res.data.token;
 
-      // Save token, role, userId in localStorage
-      login(data.token);
-      localStorage.setItem("userToken", data.token);
-      localStorage.setItem("role", data.role || payload.role || "USER");
-      localStorage.setItem("userId", userId);
+      // Save token globally and in localStorage
+      setToken(token);
 
-      setToken(data.token);
+      // Optionally save user info
+      localStorage.setItem("userToken", token);
+      localStorage.setItem("role", res.data.role || "USER");
 
       // Navigate to dashboard
       navigate("/dashboard");
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message || "Login failed");
     } finally {
       setLoading(false);
     }

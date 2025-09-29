@@ -46,13 +46,11 @@ export default function Dashboard() {
         const statsResponse = await api.get("/borrow/stats");
         setStats({
           borrowed_copies: statsResponse.data.activeBorrows,  
-          returned_copies: statsResponse.data.returnedBorrows,   // <-- comma added
+          returned_copies: statsResponse.data.returnedBorrows,
           pending_copies: statsResponse.data.totalBorrows - statsResponse.data.returnedBorrows,
           total_copies: statsResponse.data.totalBorrows, 
           available_copies: statsResponse.data.totalBorrows - statsResponse.data.activeBorrows, 
-      });
-
-     
+        });
 
         // Fetch pending requests
         const pendingResponse = await api.get("/borrow/list");
@@ -84,10 +82,35 @@ export default function Dashboard() {
     { label: "Available Books", value: stats.available_copies || 0 },
   ];
 
-  // Confirmation modal state
-  const [confirm, setConfirm] = useState({ open: false, type: null, index: -1, id: null });
-  const openConfirm = (type, index, id) => setConfirm({ open: true, type, index, id });
-  const closeConfirm = () => setConfirm({ open: false, type: null, index: -1, id: null });
+  // Confirmation modal state - UPDATED
+  const [confirm, setConfirm] = useState({ 
+    open: false, 
+    type: null, 
+    index: -1, 
+    id: null, 
+    user_id: null, 
+    book_id: null 
+  });
+
+  const openConfirm = (type, index, borrow) => {
+    setConfirm({
+      open: true,
+      type,
+      index,
+      id: borrow.id,
+      user_id: borrow.user.id,
+      book_id: borrow.book.id,
+    });
+  };
+
+  const closeConfirm = () => setConfirm({ 
+    open: false, 
+    type: null, 
+    index: -1, 
+    id: null, 
+    user_id: null, 
+    book_id: null 
+  });
 
   // Toast (2s)
   const [toast, setToast] = useState({ show: false, type: "accept", message: "" });
@@ -96,31 +119,35 @@ export default function Dashboard() {
     setTimeout(() => setToast({ show: false, type, message: "" }), 2000);
   };
 
-  // Handle accept/reject borrow request
+  // Handle accept/reject borrow request - UPDATED
   const doConfirm = async () => {
-    const { type, index, id } = confirm;
+    const { type, index, id, user_id, book_id } = confirm;
     
-    if (index < 0 || !id) {
+    if (index < 0 || !id || !user_id || !book_id) {
       console.log("Invalid confirm state:", confirm);
       return;
     }
 
     try {
       const endpoint = type === "accept" ? "/borrow/accept" : "/borrow/reject";
-      
-      await api.put(endpoint, { 
-        borrow_id: id,
-        status: type === "accept" ? "APPROVED" : "REJECTED"
-      });
+
+      // Send user_id and book_id as query parameters
+      await api.put(`${endpoint}?user_id=${user_id}&book_id=${book_id}`);
 
       // Remove from local state
       setRequests(prev => prev.filter((_, i) => i !== index));
       
       showToast(type, type === "accept" ? "Request accepted successfully" : "Request rejected successfully");
-      
+
       // Refresh stats
       const statsResponse = await api.get("/borrow/stats");
-      setStats(statsResponse.data);
+      setStats({
+        borrowed_copies: statsResponse.data.activeBorrows,
+        returned_copies: statsResponse.data.returnedBorrows,
+        pending_copies: statsResponse.data.totalBorrows - statsResponse.data.returnedBorrows,
+        total_copies: statsResponse.data.totalBorrows,
+        available_copies: statsResponse.data.totalBorrows - statsResponse.data.activeBorrows,
+      });
 
     } catch (err) {
       console.error("Failed to update borrow status:", err.response?.data || err);
@@ -418,16 +445,17 @@ export default function Dashboard() {
                   <td>{request.due_date ? new Date(request.due_date).toLocaleDateString() : "N/A"}</td>
                   <td className="text-center">
                     <div className="flex items-center justify-center gap-2">
+                      {/* UPDATED BUTTONS - passing entire request object */}
                       <button
                         type="button"
-                        onClick={() => openConfirm("accept", index, request.id)}
+                        onClick={() => openConfirm("accept", index, request)}
                         className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-400"
                       >
                         Accept
                       </button>
                       <button
                         type="button"
-                        onClick={() => openConfirm("reject", index, request.id)}
+                        onClick={() => openConfirm("reject", index, request)}
                         className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400 focus:outline-none focus:ring-2 focus:ring-red-300"
                       >
                         Reject

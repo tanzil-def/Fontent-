@@ -1,8 +1,9 @@
+// src/components/FillUpForm/FillUpForm.jsx
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CalendarDays, Upload, Users, BookOpen, HelpCircle, LogOut } from "lucide-react";
 import Sidebar from "../Sidebar/Sidebar";
-import axios from "axios";
+import api from "../../api";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function FillUpForm() {
   const [borrowedBooks, setBorrowedBooks] = useState([]);
@@ -10,7 +11,18 @@ export default function FillUpForm() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Load book from localStorage or router state
+  // Check if user is logged in
+  const checkLogin = async () => {
+    try {
+      const userRes = await api.get("/dashboard/me");
+      return userRes.data;
+    } catch (err) {
+      toast.error("You must be logged in to borrow books.");
+      navigate("/login");
+      return null;
+    }
+  };
+
   useEffect(() => {
     const books = JSON.parse(localStorage.getItem("borrowedBooks")) || [];
     const fromState = location.state?.borrowNow || location.state?.book || null;
@@ -24,7 +36,6 @@ export default function FillUpForm() {
     setBorrowedBooks(chosen ? [chosen] : []);
   }, [location.state]);
 
-  // Calculate borrowing days from today to selected return date
   const calcBorrowDays = (returnDateStr) => {
     if (!returnDateStr) return "";
     const today = new Date();
@@ -36,10 +47,8 @@ export default function FillUpForm() {
     return days > 0 ? days : 0;
   };
 
-  // Update form data on input change
   const handleChange = (e, bookId) => {
     const { name, value } = e.target;
-
     if (name === "returnDate") {
       const autoDays = calcBorrowDays(value);
       setFormData((prev) => ({
@@ -52,7 +61,6 @@ export default function FillUpForm() {
       }));
       return;
     }
-
     setFormData((prev) => ({
       ...prev,
       [bookId]: {
@@ -62,63 +70,46 @@ export default function FillUpForm() {
     }));
   };
 
-  // Submit borrow request to API
   const handleSubmit = async () => {
-    if (!borrowedBooks.length) return alert("No book selected");
-
-    const book = borrowedBooks[0]; // Only supports one book at a time
-    const bookForm = formData[book.id];
-
-    if (!bookForm || !bookForm.returnDate) {
-      return alert("Please select a return date!");
-    }
-
-    const payload = {
-      book_id: Number(book.id),
-      return_date: new Date(bookForm.returnDate).toISOString(),
-    };
-
-    console.log("Sending payload:", payload);
+    const user = await checkLogin();
+    if (!user) return; // Stop if not logged in
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) return alert("Please login first!");
+      for (const book of borrowedBooks) {
+        const data = {
+          user_id: user.id,
+          book_id: book.id,
+          days: formData[book.id]?.days || 14,
+        };
+        await api.post("/borrow/create", data);
+      }
 
-      const res = await axios.post(
-        "http://127.0.0.1:8000/api/borrow/create",
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      console.log("Borrowed successfully:", res.data);
-      alert("Book borrowed successfully!");
-      navigate("/dashboard");
-    } catch (error) {
-      console.error("Failed to borrow book:", error.response?.data || error);
-      alert(
-        "Borrow failed: " +
-          (error.response?.data?.message || JSON.stringify(error.response?.data) || error.message)
-      );
+      toast.success("Book borrowed successfully!");
+      setTimeout(() => navigate("/my-borrows"), 1500);
+    } catch (err) {
+      console.error("Error borrowing book:", err);
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+        navigate("/login");
+      } else {
+        toast.error("Failed to borrow book. Try again.");
+      }
     }
   };
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
       <Sidebar />
-
-      {/* Main Content */}
       <main className="flex-1 p-8">
+        <Toaster position="top-right" />
         <h1 className="text-2xl font-bold mb-6 text-gray-800">
           Fill Up Book Borrow Form
         </h1>
 
         <div className="space-y-8">
+          {borrowedBooks.length === 0 && (
+            <p className="text-gray-500">No book selected to borrow.</p>
+          )}
           {borrowedBooks.map((book) => (
             <div
               key={book.id}
@@ -126,28 +117,17 @@ export default function FillUpForm() {
             >
               <div className="flex items-start gap-6">
                 <img
-                  src={book.coverImage || book.image}
+                  src={book.cover || book.image || book.coverImage}
                   alt={book.title}
                   className="w-28 h-36 object-cover rounded"
                 />
-
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-800">
                     {book.title}
                   </h3>
-                  <p className="text-sm text-gray-500 mb-3">{book.authors}</p>
+                  <p className="text-sm text-gray-500 mb-3">{book.authors || book.author}</p>
 
-                  <div className="bg-gray-50 border border-dashed border-gray-300 p-3 rounded mb-4">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Available from:</span> 12 Aug 2025
-                      <br />
-                      <span className="font-medium">Must return by:</span> 19 Aug 2025
-                    </p>
-                  </div>
-
-                  {/* Form fields */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Borrowing Days (auto-calculated) */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Borrowing Days
@@ -157,7 +137,6 @@ export default function FillUpForm() {
                       </div>
                     </div>
 
-                    {/* Return Date */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Return Date
@@ -177,14 +156,16 @@ export default function FillUpForm() {
           ))}
         </div>
 
-        <div className="mt-10 text-center">
-          <button
-            onClick={handleSubmit}
-            className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md"
-          >
-            Booked
-          </button>
-        </div>
+        {borrowedBooks.length > 0 && (
+          <div className="mt-10 text-center">
+            <button
+              onClick={handleSubmit}
+              className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md"
+            >
+              Borrow
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );
