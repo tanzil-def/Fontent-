@@ -72,106 +72,75 @@
 //     </div>
 //   );
 // }
-
+// src/components/BookCard/BookCard.jsx
+// src/components/BookCard/BookCard.jsx
+// src/components/BookCard/BookCard.jsx
 import { Star } from "lucide-react";
-import { Link } from "react-router-dom";
 
-export default function BookCard({ book, compact = false }) {
-  const safe = (v, d = "") => (v === undefined || v === null ? d : v);
+export default function BookCard({ book, status, onClick, className = "" }) {
+  if (!book) return null;
 
-  // ----- status -----
-  const getStatus = (b) => {
-    if (typeof b?.inStock === "boolean") return b.inStock ? "Available" : "Stock Out";
-    const s = (b?.status || "").toString().trim().toLowerCase();
-    if (s.includes("out")) return "Stock Out";
-    if (s.includes("upcoming") || s.includes("coming")) return "Upcoming";
-    return "Available";
+  const displayStatus = status || book.status || "Available";
+
+  const statusStyles = {
+    Available: "bg-green-100 text-green-700 border-green-200",
+    "Stock Out": "bg-red-100 text-red-700 border-red-200",
+    Upcoming: "bg-yellow-100 text-yellow-700 border-yellow-200",
   };
-  const statusText = getStatus(book);
-  const statusColor =
-    statusText === "Stock Out"
-      ? "text-red-600"
-      : statusText === "Upcoming"
-      ? "text-amber-600"
-      : "text-green-600";
-
-  // rating (stars only, no count)
-  const rating = Number(book?.rating ?? 0);
-
-  // ----- title: break after 3 words -----
-  const formatTitle = (t) => {
-    const title = safe(t, "Untitled").toString().trim();
-    const words = title.split(/\s+/);
-    if (words.length <= 3) return title;
-    const first = words.slice(0, 3).join(" ");
-    const rest = words.slice(3).join(" ");
-    return `${first}\n${rest}`;
-  };
-
-  // Use null for src if no image to avoid warning
-  const imgSrc = book?.coverImage || book?.image || null;
 
   return (
-    <div className="relative w-[200px] sm:w-[200px] snap-start group select-none flex-shrink-0">
-      {/* Cover image */}
-      <div className="mx-auto h-56 w-full flex items-center justify-center">
-        {imgSrc ? (
+    <div
+      onClick={onClick}
+      className={`group cursor-pointer bg-white rounded-2xl shadow hover:shadow-lg transition-all duration-300 border border-gray-200 overflow-hidden ${className}`}
+    >
+      {/* Cover */}
+      <div className="relative aspect-[2/3] w-full overflow-hidden bg-gray-100">
+        {book.coverImage ? (
           <img
-            src={imgSrc}
-            alt={safe(book?.title, "Book cover")}
+            src={book.coverImage}
+            alt={book.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
-            className="
-              h-full w-auto object-contain rounded-md
-              drop-shadow-[0_14px_22px_rgba(0,0,0,0.06)]
-              transition-transform duration-300 group-hover:scale-[1.03]
-            "
           />
         ) : (
-          <div className="h-full w-full flex items-center justify-center bg-gray-100 rounded-md text-gray-400">
+          <div className="h-full w-full flex items-center justify-center bg-gray-100 text-gray-400 text-sm">
             No Image
           </div>
         )}
       </div>
 
-      {/* Body */}
-      <div className="px-1 pt-3 text-center flex flex-col items-center min-h-[170px]">
-        <h3 className="text-sm font-semibold text-gray-900 whitespace-pre-line line-clamp-2">
-          {formatTitle(book?.title)}
+      {/* Info */}
+      <div className="p-3 flex flex-col">
+        <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 group-hover:text-sky-600">
+          {book.title}
         </h3>
-
-        {book?.author && (
-          <p className="mt-0.5 text-xs text-gray-600">{book.author}</p>
+        {book.author && (
+          <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{book.author}</p>
         )}
 
-        {!compact && (
-          <div className="mt-2 flex items-center justify-center gap-1">
-            {[...Array(5)].map((_, i) => (
+        {/* Rating + Status */}
+        <div className="flex items-center gap-2 mt-2">
+          {/* Stars */}
+          <div className="flex items-center gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
               <Star
                 key={i}
-                className={`w-4 h-4 ${
-                  i < Math.round(rating) ? "text-yellow-500 fill-yellow-500" : "text-gray-300"
+                className={`w-3.5 h-3.5 ${
+                  i < Math.round(book.rating || 0)
+                    ? "text-yellow-400 fill-yellow-400"
+                    : "text-gray-300"
                 }`}
               />
             ))}
           </div>
-        )}
 
-        {!compact && (
-          <div className={`mt-2 text-xs font-medium ${statusColor}`}>
-            {statusText}
-          </div>
-        )}
-
-        {!compact && (
-          <div className="mt-3">
-            <Link
-              to={`/book/${book.id}`}
-              className="inline-block bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold px-5 py-2 rounded-md shadow-md"
-            >
-              View Details
-            </Link>
-          </div>
-        )}
+          {/* Status badge */}
+          <span
+            className={`px-2 py-0.5 text-xs font-medium rounded-md border ${statusStyles[displayStatus] || "bg-gray-100 text-gray-600 border-gray-200"}`}
+          >
+            {displayStatus}
+          </span>
+        </div>
       </div>
     </div>
   );

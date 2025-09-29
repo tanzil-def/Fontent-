@@ -15,33 +15,32 @@ import {
   PartyPopper,
   X,
   HandHeart,
+  AlertCircle,
 } from "lucide-react";
 import UserSidebar from "../UserSidebar/UserSidebar";
+import api from "../../api"; // Import your api instance
 
 export default function UploadBookPage() {
   const initialBookData = {
     title: "",
     author: "",
-    // input-based category
     mainCategory: "",
     quantity: "",
     description: "",
-    // Added
     bsEmail: "",
     bsIdNo: "",
     bookIdNo: "",
   };
 
   const [bookData, setBookData] = useState(initialBookData);
-
-  // Upload states (logic unchanged)
   const [coverPreview, setCoverPreview] = useState(null);
   const [pdfSelected, setPdfSelected] = useState(false);
   const [audioSelected, setAudioSelected] = useState(false);
-
   const [loadingCover, setLoadingCover] = useState(false);
   const [loadingPDF, setLoadingPDF] = useState(false);
   const [loadingAudio, setLoadingAudio] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const [files, setFiles] = useState({
     cover: null,
@@ -55,12 +54,14 @@ export default function UploadBookPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setBookData((prev) => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    if (error) setError(null);
   };
 
   const simulateDelay = (ms = 3000) =>
     new Promise((resolve) => setTimeout(resolve, ms));
 
-  // ==== Upload logic (kept exactly the same) ====
+  // ==== Upload logic (unchanged) ====
   const handleCoverUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -91,11 +92,9 @@ export default function UploadBookPage() {
     setAudioSelected(true);
     setLoadingAudio(false);
   };
-  // ==== /Upload logic ====
 
-  // Helper: reset the form so user can fill up again (also resets stepper colors)
+  // Helper: reset the form
   const resetForm = () => {
-    // revoke any object URL to avoid leaks
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     setBookData(initialBookData);
     setFiles({ cover: null, pdf: null, audio: null });
@@ -105,73 +104,116 @@ export default function UploadBookPage() {
     setLoadingCover(false);
     setLoadingPDF(false);
     setLoadingAudio(false);
+    setError(null);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = {
-      ...bookData,
-      hasCoverImage: !!files.cover,
-      hasPDF: !!files.pdf,
-      hasAudio: !!files.audio,
-    };
-    console.log("Book submitted:", payload, files);
+    setSubmitting(true);
+    setError(null);
 
-    // Optional: save a simple history entry (so “fill up history” can refresh elsewhere if you read it)
     try {
-      const history = JSON.parse(localStorage.getItem("donationHistory") || "[]");
-      history.push({
-        ...payload,
-        createdAt: new Date().toISOString(),
-        files: {
-          cover: files.cover?.name || null,
-          pdf: files.pdf?.name || null,
-          audio: files.audio?.name || null,
+      // Create FormData for file upload
+      const formData = new FormData();
+
+      // Append all book data fields
+      Object.keys(bookData).forEach(key => {
+        if (bookData[key] !== null && bookData[key] !== undefined) {
+          formData.append(key, bookData[key]);
+        }
+      });
+
+      // Append files if they exist
+      if (files.cover) {
+        formData.append('cover_image', files.cover);
+      }
+      if (files.pdf) {
+        formData.append('pdf_file', files.pdf);
+      }
+      if (files.audio) {
+        formData.append('audio_clip', files.audio);
+      }
+
+      // Make API call
+      const response = await api.post('/donations/create', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
         },
       });
-      localStorage.setItem("donationHistory", JSON.stringify(history));
-    } catch {}
 
-    // Show popup
-    setShowSuccess(true);
+      console.log("Book submitted successfully:", response.data);
 
-    // Auto close + auto reset after a few seconds so the form is ready to fill again
-    setTimeout(() => {
-      setShowSuccess(false);
-      resetForm();
-      // If you prefer a hard refresh instead, uncomment:
-      // window.location.reload();
-    }, 2500);
+      // Save to local storage for history
+      try {
+        const history = JSON.parse(localStorage.getItem("donationHistory") || "[]");
+        history.push({
+          ...bookData,
+          createdAt: new Date().toISOString(),
+          files: {
+            cover: files.cover?.name || null,
+            pdf: files.pdf?.name || null,
+            audio: files.audio?.name || null,
+          },
+          apiResponse: response.data,
+        });
+        localStorage.setItem("donationHistory", JSON.stringify(history));
+      } catch (storageError) {
+        console.warn("Could not save to local storage:", storageError);
+      }
+
+      // Show success popup
+      setShowSuccess(true);
+
+      // Auto close + reset after success
+      setTimeout(() => {
+        setShowSuccess(false);
+        resetForm();
+      }, 2500);
+
+    } catch (err) {
+      console.error("Error submitting book:", err);
+      setError(
+        err.response?.data?.message || 
+        err.response?.data?.error || 
+        "Failed to submit book. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // ------ Stepper derived states (your rules) ------
-  // Step 1 completes when BS ID No is filled
+  // ------ Stepper derived states ------
   const detailsComplete = Boolean(String(bookData.bsIdNo || "").trim().length > 0);
-  // Step 2 completes when AUDIO is uploaded
   const uploadsComplete = Boolean(files.audio || audioSelected);
-  // -------------------------------------------------
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar (kept) */}
+      {/* Sidebar */}
       <UserSidebar />
 
       {/* Main Content */}
       <main className="flex-1 p-4 sm:p-6 md:p-10">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
-         <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-800 mb-1 flex items-center gap-2">
-              <HandHeart className="text-sky-500" size={24} />
-              Donation Book
-            </h1>
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-gray-800 mb-1 flex items-center gap-2">
+                <HandHeart className="text-sky-500" size={24} />
+                Donation Book
+              </h1>
+            </div>
+            <p className="text-sm text-gray-600 mb-8">
+              Fill in the details below to add a new book to the library database.
+            </p>
           </div>
-          <p className="text-sm text-gray-600 mb-8">
-            Fill in the details below to add a new book to the library database.
-          </p>
-          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+              <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
 
           {/* Stepper */}
           <div className="mt-6">
@@ -184,7 +226,7 @@ export default function UploadBookPage() {
                 <span className="font-medium text-gray-800">Book Details</span>
               </div>
 
-              {/* Line 1: ash -> sky when BS ID No is filled */}
+              {/* Line 1 */}
               <div className="relative flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
@@ -219,7 +261,7 @@ export default function UploadBookPage() {
                 </span>
               </div>
 
-              {/* Line 2: ash -> sky after AUDIO is uploaded */}
+              {/* Line 2 */}
               <div className="relative flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
@@ -278,10 +320,11 @@ export default function UploadBookPage() {
                   <input
                     type="text"
                     name="title"
-                    placeholder="e.g.,Book Title"
+                    placeholder="e.g., Book Title"
                     value={bookData.title}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required
                   />
                 </div>
 
@@ -293,10 +336,11 @@ export default function UploadBookPage() {
                     <input
                       type="text"
                       name="mainCategory"
-                      placeholder="e.g.,Software Engineering"
+                      placeholder="e.g., Software Engineering"
                       value={bookData.mainCategory}
                       onChange={handleChange}
                       className="w-full px-3 py-2 border rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
                     />
                   </div>
 
@@ -309,10 +353,11 @@ export default function UploadBookPage() {
                       min="1"
                       step="1"
                       name="quantity"
-                      placeholder="e.g.,3"
+                      placeholder="e.g., 3"
                       value={bookData.quantity}
                       onChange={handleChange}
                       className="w-full px-3 py-2 border rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
                     />
                   </div>
                 </div>
@@ -324,10 +369,11 @@ export default function UploadBookPage() {
                   <input
                     type="text"
                     name="author"
-                    placeholder="e.g.,Author Name"
+                    placeholder="e.g., Author Name"
                     value={bookData.author}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required
                   />
                 </div>
 
@@ -344,6 +390,7 @@ export default function UploadBookPage() {
                       value={bookData.bsEmail}
                       onChange={handleChange}
                       className="w-full px-3 py-2 border rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
                     />
                   </div>
 
@@ -358,6 +405,7 @@ export default function UploadBookPage() {
                       value={bookData.bsIdNo}
                       onChange={handleChange}
                       className="w-full px-3 py-2 border rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      required
                     />
                     <p
                       className={`mt-1 text-xs ${
@@ -539,16 +587,25 @@ export default function UploadBookPage() {
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       type="button"
-                      className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md"
+                      className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={resetForm}
+                      disabled={submitting}
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-md font-medium"
+                      className="flex-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      disabled={submitting || !detailsComplete || !uploadsComplete}
                     >
-                      Confirm Book
+                      {submitting ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          Submitting...
+                        </>
+                      ) : (
+                        "Confirm Book"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -652,5 +709,3 @@ export default function UploadBookPage() {
     </div>
   );
 }
-
-
