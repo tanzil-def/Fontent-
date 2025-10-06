@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   Search,
   Filter as FilterIcon,
+  Upload,
+  X,
 } from "lucide-react";
 
 import Sidebar from "../../components/DashboardSidebar/DashboardSidebar";
@@ -45,6 +47,43 @@ function normalizeFromApi(item) {
     audio: item.audio_file || "",
     description: item.description || "",
   };
+}
+
+// File preview component
+function FilePreview({ file, onRemove, type = "file" }) {
+  const getFileIcon = () => {
+    if (type === "image") return "🖼️";
+    if (type === "pdf") return "📄";
+    if (type === "audio") return "🎵";
+    return "📎";
+  };
+
+  const getFileSize = (size) => {
+    if (size < 1024) return size + " bytes";
+    else if (size < 1048576) return (size / 1024).toFixed(1) + " KB";
+    else return (size / 1048576).toFixed(1) + " MB";
+  };
+
+  return (
+    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+      <span className="text-lg">{getFileIcon()}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-700 truncate">
+          {file.name}
+        </p>
+        <p className="text-xs text-gray-500">
+          {getFileSize(file.size)}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-gray-400 hover:text-red-500 transition-colors"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
 }
 
 // ---------- Filter Bar COMPONENT ----------
@@ -239,6 +278,9 @@ export default function ManageBooks() {
     pdf_file: "",
     audio_file: "",
     description: "",
+    cover_file: null,
+    pdf_upload: null,
+    audio_upload: null,
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -253,6 +295,9 @@ export default function ManageBooks() {
     pdf_file: row.pdf || "",
     audio_file: row.audio || "",
     description: row.description || "",
+    cover_file: null,
+    pdf_upload: null,
+    audio_upload: null,
   });
 
   const onOpenCreate = () => {
@@ -281,6 +326,17 @@ export default function ManageBooks() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const handleFileChange = (e, fieldName) => {
+    const file = e.target.files[0];
+    if (file) {
+      setForm((f) => ({ ...f, [fieldName]: file }));
+    }
+  };
+
+  const removeFile = (fieldName) => {
+    setForm((f) => ({ ...f, [fieldName]: null }));
   };
 
   // 2s "Saved" toast
@@ -314,19 +370,31 @@ export default function ManageBooks() {
         return;
       }
 
-      // Prepare book data according to API requirements
-      const bookData = {
-        title: form.title,
-        author: form.author,
-        category_id: parseInt(form.category_id) || 1,
-        format: form.format || "HARD_COPY",
-        copies_total: parseInt(form.copies_total) || 1,
-        copies_available: parseInt(form.copies_available) || 1,
-        description: form.description || "No description provided",
-        cover: form.cover || PLACEHOLDER_IMG,
-        pdf_file: form.pdf_file || "",
-        audio_file: form.audio_file || ""
-      };
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      
+      // Append all text fields
+      formData.append('title', form.title);
+      formData.append('author', form.author);
+      formData.append('category_id', parseInt(form.category_id) || 1);
+      formData.append('format', form.format || "HARD_COPY");
+      formData.append('copies_total', parseInt(form.copies_total) || 1);
+      formData.append('copies_available', parseInt(form.copies_available) || 1);
+      formData.append('description', form.description || "No description provided");
+      formData.append('cover', form.cover || PLACEHOLDER_IMG);
+      formData.append('pdf_file', form.pdf_file || "");
+      formData.append('audio_file', form.audio_file || "");
+
+      // Append file uploads if they exist
+      if (form.cover_file) {
+        formData.append('cover_file', form.cover_file);
+      }
+      if (form.pdf_upload) {
+        formData.append('pdf_upload', form.pdf_upload);
+      }
+      if (form.audio_upload) {
+        formData.append('audio_upload', form.audio_upload);
+      }
 
       let url, method;
       if (mode === "edit") {
@@ -340,11 +408,11 @@ export default function ManageBooks() {
       const response = await fetch(url, {
         method,
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
           'accept': 'application/json'
+          // Don't set Content-Type - let browser set it with boundary
         },
-        body: JSON.stringify(bookData)
+        body: formData
       });
 
       if (response.ok) {
@@ -563,11 +631,11 @@ export default function ManageBooks() {
           }}
         >
           <div className="absolute inset-0 bg-black/50 opacity-0 animate-[fadeIn_.2s_ease-out_forwards]" />
-          <div className="absolute inset-0 flex items-start justify-center pt-8 md:pt-12">
+          <div className="absolute inset-0 flex items-start justify-center pt-8 md:pt-12 overflow-y-auto">
             <div
               className="
                 w-full max-w-3xl md:max-w-4xl mx-4 rounded-lg bg-white shadow-lg
-                opacity-0 translate-y-3 scale-[0.98] animate-[popIn_.22s_ease-out_forwards]
+                opacity-0 translate-y-3 scale-[0.98] animate-[popIn_.22s_ease-out_forwards] mb-8
               "
             >
               <div className="px-6 py-4 flex items-center gap-2">
@@ -668,7 +736,30 @@ export default function ManageBooks() {
                     />
                   </div>
 
-                  {/* 8) PDF File URL */}
+                  {/* 8) Cover Image File Upload */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-gray-700 mb-1">
+                      Or Upload Cover Image
+                    </label>
+                    {!form.cover_file ? (
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileChange(e, 'cover_file')}
+                          className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                        />
+                      </div>
+                    ) : (
+                      <FilePreview 
+                        file={form.cover_file} 
+                        onRemove={() => removeFile('cover_file')}
+                        type="image"
+                      />
+                    )}
+                  </div>
+
+                  {/* 9) PDF File URL */}
                   <div className="md:col-span-2">
                     <label className="block text-sm text-gray-700 mb-1">
                       PDF File URL
@@ -682,7 +773,30 @@ export default function ManageBooks() {
                     />
                   </div>
 
-                  {/* 9) Audio File URL */}
+                  {/* 10) PDF File Upload */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-gray-700 mb-1">
+                      Or Upload PDF File
+                    </label>
+                    {!form.pdf_upload ? (
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          onChange={(e) => handleFileChange(e, 'pdf_upload')}
+                          className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                        />
+                      </div>
+                    ) : (
+                      <FilePreview 
+                        file={form.pdf_upload} 
+                        onRemove={() => removeFile('pdf_upload')}
+                        type="pdf"
+                      />
+                    )}
+                  </div>
+
+                  {/* 11) Audio File URL */}
                   <div className="md:col-span-2">
                     <label className="block text-sm text-gray-700 mb-1">
                       Audio File URL
@@ -696,7 +810,30 @@ export default function ManageBooks() {
                     />
                   </div>
 
-                  {/* 10) Description */}
+                  {/* 12) Audio File Upload */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-gray-700 mb-1">
+                      Or Upload Audio File
+                    </label>
+                    {!form.audio_upload ? (
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="file"
+                          accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                          onChange={(e) => handleFileChange(e, 'audio_upload')}
+                          className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                        />
+                      </div>
+                    ) : (
+                      <FilePreview 
+                        file={form.audio_upload} 
+                        onRemove={() => removeFile('audio_upload')}
+                        type="audio"
+                      />
+                    )}
+                  </div>
+
+                  {/* 13) Description */}
                   <div className="md:col-span-2">
                     <label className="block text-sm text-gray-700 mb-1">Description</label>
                     <textarea

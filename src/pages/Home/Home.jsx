@@ -14,11 +14,9 @@ const normalizeBookData = (book) => ({
   title: book.title,
   author: book.author,
   coverImage: book.cover || book.cover_image || book.image,
-  category:
-    typeof book.category === "string"
-      ? book.category
-      : book.category?.name || "uncategorized",
+  category: typeof book.category === "string" ? book.category : book.category?.name || "uncategorized",
   rating: book.average_rating || 0,
+  copies_available: book.copies_available || 0,
   status: book.copies_available > 0 ? "Available" : "Stock Out",
 });
 
@@ -60,35 +58,20 @@ export default function Home() {
     fetchBooks();
   }, []);
 
-  const allBooks = useMemo(
-    () => [...recommended, ...popular, ...newCollection],
-    [recommended, popular, newCollection]
-  );
+  const allBooks = useMemo(() => [...recommended, ...popular, ...newCollection], [recommended, popular, newCollection]);
 
   const filtered = useMemo(() => {
-    if (!filter) return [];
+    if (!filter) return allBooks;
     if (filter.type === "all") return allBooks;
     if (filter.type === "category")
-      return allBooks.filter(
-        (b) =>
-          ((b.category?.name || "")).toLowerCase() ===
-          (filter.value || "").toLowerCase()
-      );
+      return allBooks.filter((b) => (b.category || "").toLowerCase() === (filter.value || "").toLowerCase());
     if (filter.type === "subcategory")
-      return allBooks.filter(
-        (b) =>
-          ((b.category?.name || "")).toLowerCase() ===
-          (filter.parent || "").toLowerCase()
-      );
+      return allBooks.filter((b) => (b.category || "").toLowerCase() === (filter.parent || "").toLowerCase());
     return allBooks;
   }, [filter, allBooks]);
 
   const getStatus = (b) => {
-    const raw = (b.status || "").toString().toLowerCase();
-    if (raw === "available") return "Available";
-    if (raw.includes("out")) return "Stock Out";
-    if (raw.includes("upcoming") || raw.includes("coming")) return "Upcoming";
-    return "Available";
+    return b.copies_available > 0 ? "Available" : "Stock Out";
   };
 
   const goTo = (id) => navigate(`/book/${id}`);
@@ -99,6 +82,7 @@ export default function Home() {
         <p>Loading books...</p>
       </div>
     );
+
   if (errorMsg)
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center text-red-500">
@@ -134,31 +118,13 @@ export default function Home() {
             {!filter ? (
               <>
                 {recommended.length > 0 && (
-                  <CollectionBox
-                    title="Recommended"
-                    books={recommended}
-                    ref={recRowRef}
-                    goTo={goTo}
-                    getStatus={getStatus}
-                  />
+                  <CollectionBox title="Recommended" books={recommended} ref={recRowRef} goTo={goTo} getStatus={getStatus} />
                 )}
                 {popular.length > 0 && (
-                  <CollectionBox
-                    title="Popular"
-                    books={popular}
-                    ref={popRowRef}
-                    goTo={goTo}
-                    getStatus={getStatus}
-                  />
+                  <CollectionBox title="Popular" books={popular} ref={popRowRef} goTo={goTo} getStatus={getStatus} />
                 )}
                 {newCollection.length > 0 && (
-                  <CollectionBox
-                    title="New Collection"
-                    books={newCollection}
-                    ref={newColRef}
-                    goTo={goTo}
-                    getStatus={getStatus}
-                  />
+                  <CollectionBox title="New Collection" books={newCollection} ref={newColRef} goTo={goTo} getStatus={getStatus} />
                 )}
               </>
             ) : (
@@ -168,15 +134,10 @@ export default function Home() {
                   <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
                     Showing results for:{" "}
                     <span className="text-sky-600">
-                      {filter.type === "subcategory"
-                        ? `${filter.parent} → ${filter.value}`
-                        : filter.value || "All"}
+                      {filter.type === "subcategory" ? `${filter.parent} → ${filter.value}` : filter.value || "All"}
                     </span>
                   </h2>
-                  <button
-                    onClick={() => setFilter(null)}
-                    className="text-sm text-gray-600 hover:text-sky-600"
-                  >
+                  <button onClick={() => setFilter(null)} className="text-sm text-gray-600 hover:text-sky-600">
                     Clear
                   </button>
                 </div>
@@ -186,13 +147,7 @@ export default function Home() {
                 ) : (
                   <div className="flex flex-wrap gap-5">
                     {filtered.map((b) => (
-                      <BookCard
-                        key={b.id}
-                        book={{ ...b, coverImage: b.coverImage || b.image }}
-                        status={getStatus(b)}
-                        onClick={() => goTo(b.id)}
-                        className="w-[200px]"
-                      />
+                      <BookCard key={b.id} book={b} status={getStatus(b)} className="w-[calc((100%/3)-16px)]" />
                     ))}
                   </div>
                 )}
@@ -210,18 +165,11 @@ export default function Home() {
       {/* Mobile sidebar */}
       {openFilters && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
-            onClick={() => setOpenFilters(false)}
-          />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={() => setOpenFilters(false)} />
           <div className="absolute left-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-2xl p-4 overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-base font-semibold text-gray-800">Filters</h3>
-              <button
-                aria-label="Close filters"
-                onClick={() => setOpenFilters(false)}
-                className="p-2 hover:bg-gray-100 rounded"
-              >
+              <button aria-label="Close filters" onClick={() => setOpenFilters(false)} className="p-2 hover:bg-gray-100 rounded">
                 <X className="w-5 h-5 text-gray-600" />
               </button>
             </div>
@@ -244,62 +192,38 @@ const CollectionBox = forwardRef(({ title, books, goTo, getStatus }, ref) => {
 
   const scrollByAmount = (dir = 1) => {
     if (!scrollRef.current) return;
-    const step = 220 * 3; // approx 3 books
+    const step = 220 * 3; // scroll approx 3 cards
     scrollRef.current.scrollBy({ left: step * dir, behavior: "smooth" });
   };
 
   return (
     <div className="mb-8 rounded-lg border border-gray-300 overflow-hidden relative">
       <div className="px-4 py-3 bg-white flex items-center justify-between">
-        <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
-          {title}
-        </h2>
-        {/* Desktop buttons */}
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{title}</h2>
         <div className="hidden sm:flex gap-2">
-          <button
-            onClick={() => scrollByAmount(-1)}
-            className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50"
-          >
+          <button onClick={() => scrollByAmount(-1)} className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => scrollByAmount(1)}
-            className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50"
-          >
+          <button onClick={() => scrollByAmount(1)} className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="overflow-x-auto flex gap-5 p-3 sm:p-4 snap-x snap-mandatory scroll-smooth"
-      >
+      <div ref={scrollRef} className="overflow-x-auto flex gap-5 p-3 sm:p-4 snap-x snap-mandatory scroll-smooth">
         {books.map((b) => (
-          <BookCard
-            key={b.id}
-            book={{ ...b, coverImage: b.coverImage || b.image }}
-            status={getStatus(b)}
-            onClick={() => goTo(b.id)}
-            className="flex-shrink-0 w-[200px]"
-          />
+          <BookCard key={b.id} book={b} status={getStatus(b)} className="flex-shrink-0 w-[calc((100%/3)-16px)]" />
         ))}
       </div>
 
       {/* Mobile buttons */}
       <div className="sm:hidden absolute inset-y-0 left-1 flex items-center">
-        <button
-          onClick={() => scrollByAmount(-1)}
-          className="p-2 rounded-md border border-gray-300 bg-white/90 hover:bg-white shadow"
-        >
+        <button onClick={() => scrollByAmount(-1)} className="p-2 rounded-md border border-gray-300 bg-white/90 hover:bg-white shadow">
           <ChevronLeft className="w-4 h-4" />
         </button>
       </div>
       <div className="sm:hidden absolute inset-y-0 right-1 flex items-center">
-        <button
-          onClick={() => scrollByAmount(1)}
-          className="p-2 rounded-md border border-gray-300 bg-white/90 hover:bg-white shadow"
-        >
+        <button onClick={() => scrollByAmount(1)} className="p-2 rounded-md border border-gray-300 bg-white/90 hover:bg-white shadow">
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>

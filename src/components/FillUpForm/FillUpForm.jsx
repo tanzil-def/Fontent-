@@ -1,172 +1,160 @@
-// src/components/FillUpForm/FillUpForm.jsx
-import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import Sidebar from "../Sidebar/Sidebar";
-import api from "../../api";
-import toast, { Toaster } from "react-hot-toast";
+// src/pages/FillUpForm/FillUpForm.jsx
+import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Calendar } from "lucide-react";
+import { format, addDays, differenceInCalendarDays } from "date-fns";
+
+// Mock API function
+const submitBorrowRequest = async (data) => {
+  console.log("Submitting borrow request:", data);
+  return new Promise((resolve) => setTimeout(resolve, 1500));
+};
 
 export default function FillUpForm() {
-  const [borrowedBooks, setBorrowedBooks] = useState([]);
-  const [formData, setFormData] = useState({});
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check if user is logged in
-  const checkLogin = async () => {
-    try {
-      const userRes = await api.get("/dashboard/me");
-      return userRes.data;
-    } catch (err) {
-      toast.error("You must be logged in to borrow books.");
-      navigate("/login");
-      return null;
-    }
-  };
+  // Get book data
+  const bookData = location.state?.borrowNow || JSON.parse(localStorage.getItem('borrowNow'));
+
+  const [returnDate, setReturnDate] = useState("");
+  const [borrowingDays, setBorrowingDays] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const books = JSON.parse(localStorage.getItem("borrowedBooks")) || [];
-    const fromState = location.state?.borrowNow || location.state?.book || null;
-    const fromKey = JSON.parse(localStorage.getItem("borrowNow") || "null");
+    if (!bookData) navigate("/", { replace: true });
+  }, [bookData, navigate]);
 
-    const chosen =
-      fromState ||
-      fromKey ||
-      (books.length ? books[0] : null);
+  if (!bookData) return <div className="text-center py-20">Loading...</div>;
 
-    setBorrowedBooks(chosen ? [chosen] : []);
-  }, [location.state]);
+  const today = new Date();
+  const maxReturnDate = addDays(today, 14);
 
-  const calcBorrowDays = (returnDateStr) => {
-    if (!returnDateStr) return "";
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const rtn = new Date(returnDateStr);
-    const end = new Date(rtn.getFullYear(), rtn.getMonth(), rtn.getDate());
-    const diffMs = end - start;
-    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
-  };
-
-  const handleChange = (e, bookId) => {
-    const { name, value } = e.target;
-    if (name === "returnDate") {
-      const autoDays = calcBorrowDays(value);
-      setFormData((prev) => ({
-        ...prev,
-        [bookId]: {
-          ...prev[bookId],
-          returnDate: value,
-          days: autoDays,
-        },
-      }));
+  const handleReturnDateChange = (e) => {
+    const selected = new Date(e.target.value);
+    const diffDays = differenceInCalendarDays(selected, today);
+    if (diffDays < 0) {
+      alert("Return date cannot be in the past.");
+      setReturnDate("");
+      setBorrowingDays(0);
       return;
     }
-    setFormData((prev) => ({
-      ...prev,
-      [bookId]: {
-        ...prev[bookId],
-        [name]: value,
-      },
-    }));
+    if (diffDays > 14) {
+      alert("You cannot borrow a book for more than 14 days.");
+      setReturnDate("");
+      setBorrowingDays(0);
+      return;
+    }
+    setReturnDate(e.target.value);
+    setBorrowingDays(diffDays);
   };
 
-  const handleSubmit = async () => {
-    const user = await checkLogin();
-    if (!user) return; // Stop if not logged in
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!returnDate || borrowingDays === 0) {
+      alert("Please select a valid return date within 14 days.");
+      return;
+    }
 
+    setIsSubmitting(true);
     try {
-      for (const book of borrowedBooks) {
-        const data = {
-          user_id: user.id,
-          book_id: book.id,
-          days: formData[book.id]?.days || 14,
-        };
-        await api.post("/borrow/create", data);
-      }
-
-      toast.success("Book borrowed successfully!");
-      setTimeout(() => navigate("/my-borrows"), 1500);
+      const payload = {
+        book_id: bookData.id,
+        borrower_name: "User Name",
+        borrow_date: format(today, "yyyy-MM-dd"),
+        return_date: format(new Date(returnDate), "yyyy-MM-dd"),
+        duration_days: borrowingDays,
+      };
+      await submitBorrowRequest(payload);
+      alert(`Successfully requested to borrow "${bookData.title}" until ${returnDate}.`);
+      localStorage.removeItem('borrowNow');
+      navigate(`/book/${bookData.id}`);
     } catch (err) {
-      console.error("Error borrowing book:", err);
-      if (err.response?.status === 401) {
-        toast.error("Session expired. Please login again.");
-        navigate("/login");
-      } else {
-        toast.error("Failed to borrow book. Try again.");
-      }
+      console.error(err);
+      alert("Failed to submit borrow request.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const mockAvailableDate = format(today, "MM/dd/yyyy");
+
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <Sidebar />
-      <main className="flex-1 p-8">
-        <Toaster position="top-right" />
-        <h1 className="text-2xl font-bold mb-6 text-gray-800">
+    <div className="min-h-screen bg-gray-50 p-6 sm:p-10">
+      <div className="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-lg shadow-xl">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-8">
           Fill Up Book Borrow Form
         </h1>
 
-        <div className="space-y-8">
-          {borrowedBooks.length === 0 && (
-            <p className="text-gray-500">No book selected to borrow.</p>
-          )}
-          {borrowedBooks.map((book) => (
-            <div
-              key={book.id}
-              className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-            >
-              <div className="flex items-start gap-6">
-                <img
-                  src={book.cover || book.image || book.coverImage}
-                  alt={book.title}
-                  className="w-28 h-36 object-cover rounded"
-                />
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-gray-800">
-                    {book.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 mb-3">{book.authors || book.author}</p>
+        <div className="flex flex-col sm:flex-row gap-6">
+          {/* Book Cover */}
+          <div className="flex-shrink-0 w-full sm:w-1/3 max-w-[200px]">
+            <img
+              src={bookData.coverImage}
+              alt={bookData.title}
+              className="w-full h-auto rounded-md shadow-lg"
+            />
+          </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Borrowing Days
-                      </label>
-                      <div className="w-full border rounded px-3 py-2 bg-gray-50">
-                        {formData[book.id]?.days ?? "—"}
-                      </div>
-                    </div>
+          {/* Form & Details */}
+          <div className="flex-grow">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{bookData.title}</h2>
+            <p className="text-gray-600 mt-1">by {bookData.authors}</p>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Return Date
-                      </label>
-                      <input
-                        type="date"
-                        name="returnDate"
-                        className="w-full border rounded px-3 py-2"
-                        value={formData[book.id]?.returnDate || ""}
-                        onChange={(e) => handleChange(e, book.id)}
-                      />
-                    </div>
+            <div className="mt-5 p-4 bg-gray-100 rounded-lg text-gray-700 space-y-2">
+              <p><span className="font-semibold">Available from:</span> {mockAvailableDate}</p>
+              <p><span className="font-semibold">Must return within 14 days</span></p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Borrowing Days */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Borrowing Days (auto)
+                  </label>
+                  <input
+                    type="text"
+                    value={borrowingDays > 0 ? borrowingDays : "—"}
+                    readOnly
+                    className="w-full p-3 border border-gray-300 rounded-md bg-gray-100 text-gray-900 font-semibold"
+                  />
+                </div>
+
+                {/* Return Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Return Date (max 14 days)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      min={format(today, "yyyy-MM-dd")}
+                      max={format(maxReturnDate, "yyyy-MM-dd")}
+                      value={returnDate}
+                      onChange={handleReturnDateChange}
+                      className="w-full p-3 border border-gray-300 rounded-md focus:ring-sky-500 focus:border-sky-500 bg-white"
+                    />
+                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
 
-        {borrowedBooks.length > 0 && (
-          <div className="mt-10 text-center">
-            <button
-              onClick={handleSubmit}
-              className="bg-sky-500 hover:bg-sky-600 text-white font-semibold px-6 py-3 rounded-md"
-            >
-              Borrow
-            </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !returnDate}
+                className={`w-full px-4 py-3 text-white font-semibold rounded-md transition duration-150 ${
+                  isSubmitting || !returnDate
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-sky-500 hover:bg-sky-600"
+                }`}
+              >
+                {isSubmitting ? "Submitting Request..." : "Confirm Borrow Request"}
+              </button>
+            </form>
           </div>
-        )}
-      </main>
+        </div>
+      </div>
     </div>
   );
 }

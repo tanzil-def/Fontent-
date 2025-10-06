@@ -75,11 +75,12 @@
 // src/components/BookCard/BookCard.jsx
 // src/components/BookCard/BookCard.jsx
 // src/components/BookCard/BookCard.jsx
+// src/components/BookCard/BookCard.jsx
 import { Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-export default function BookCard({ book, status, onClick, className = "" }) {
-  if (!book) return null;
-
+export default function BookCard({ book, status, className = "", variant }) {
+  const navigate = useNavigate();
   const displayStatus = status || book.status || "Available";
 
   const statusStyles = {
@@ -88,9 +89,12 @@ export default function BookCard({ book, status, onClick, className = "" }) {
     Upcoming: "bg-yellow-100 text-yellow-700 border-yellow-200",
   };
 
+  const goToDetails = () => {
+    navigate(`/book/${book.id}`);
+  };
+
   return (
     <div
-      onClick={onClick}
       className={`group cursor-pointer bg-white rounded-2xl shadow hover:shadow-lg transition-all duration-300 border border-gray-200 overflow-hidden ${className}`}
     >
       {/* Cover */}
@@ -141,11 +145,18 @@ export default function BookCard({ book, status, onClick, className = "" }) {
             {displayStatus}
           </span>
         </div>
+
+        {/* View Details button */}
+        <button
+          onClick={goToDetails}
+          className="mt-3 w-full text-sm font-semibold bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-md shadow-md transition-colors duration-200"
+        >
+          View Details
+        </button>
       </div>
     </div>
   );
 }
-
 // // src/components/BookCard/BookCard.jsx
 // import { useEffect, useRef, useState } from "react";
 // import { MoreVertical } from "lucide-react";

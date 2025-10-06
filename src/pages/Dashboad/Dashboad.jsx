@@ -142,11 +142,13 @@ export default function Dashboard() {
       // Refresh stats
       const statsResponse = await api.get("/borrow/stats");
       setStats({
-        borrowed_copies: statsResponse.data.activeBorrows,
+        borrowed_copies: statsResponse.data.activeBorrows,  
         returned_copies: statsResponse.data.returnedBorrows,
-        pending_copies: statsResponse.data.totalBorrows - statsResponse.data.returnedBorrows,
-        total_copies: statsResponse.data.totalBorrows,
-        available_copies: statsResponse.data.totalBorrows - statsResponse.data.activeBorrows,
+        pending_copies: statsResponse.data.pendingBorrows || 
+                  (statsResponse.data.totalBorrows - statsResponse.data.activeBorrows - statsResponse.data.returnedBorrows),
+        total_copies: statsResponse.data.totalBorrows, 
+        available_copies: statsResponse.data.totalBorrows - 
+                    (statsResponse.data.activeBorrows + statsResponse.data.pendingBorrows || 0),
       });
 
     } catch (err) {

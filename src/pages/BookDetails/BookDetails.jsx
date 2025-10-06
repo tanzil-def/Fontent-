@@ -12,6 +12,9 @@ import {
   ChevronRight,
   ThumbsUp,
   ThumbsDown,
+  RotateCcw,
+  RotateCw,
+  Gauge,
 } from "lucide-react";
 import BookCard from "../../components/BookCard/BookCard";
 import api from "../../api";
@@ -101,12 +104,16 @@ export default function BookDetails() {
   const [bump, setBump] = useState({});
   const [feedbackToast, setFeedbackToast] = useState({ open: false, type: "", msg: "" });
 
-  // Audio player state - COMPLETELY FIXED
+  // ✅ Enhanced Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
   const [curTime, setCurTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioError, setAudioError] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  
+  // NEW: Audio controls state
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
   // ---------- utils ----------
   const splitSentences = (txt = "") =>
@@ -124,27 +131,37 @@ export default function BookDetails() {
     return { intro, tail };
   };
 
-  // ✅ Audio validation function - COMPLETELY FIXED
+  // ✅ FIXED: Audio validation function - prevents double "audio/" in path
   const pickAudio = (b) => {
     const audio = b?.audio_file || b?.audioSrc || b?.audioLink || b?.audio_clip || b?.audioURL;
-    if (!audio) return null;
-    
-    // Validate audio URL
-    if (typeof audio === 'string') {
-      // Check if it's a valid URL
-      try {
-        const url = new URL(audio);
-        // Allow common audio formats and any URL that starts with http
-        if (url.protocol === 'http:' || url.protocol === 'https:') {
-          return audio;
-        }
-      } catch (e) {
-        // If URL parsing fails, check if it's a relative path
-        if (audio.startsWith('/') || audio.startsWith('./')) {
-          return audio;
-        }
-      }
+    if (!audio) {
+      console.log("No audio file found for book");
+      return null;
     }
+
+    if (typeof audio === "string") {
+      // If it's already a full URL, return as is
+      if (audio.startsWith("http")) {
+        console.log("Using full audio URL:", audio);
+        return audio;
+      }
+
+      // Clean the path to avoid double "audio/" folders
+      let cleanPath = audio;
+      // Remove leading slash if present
+      if (cleanPath.startsWith("/")) {
+        cleanPath = cleanPath.slice(1);
+      }
+      // Remove duplicate "audio/" prefix if exists
+      if (cleanPath.startsWith("audio/")) {
+        cleanPath = cleanPath.replace(/^audio\//, "");
+      }
+
+      const fullUrl = `http://127.0.0.1:8000/media/audio/${cleanPath}`;
+      console.log("Constructed audio URL:", fullUrl);
+      return fullUrl;
+    }
+
     return null;
   };
 
@@ -174,7 +191,7 @@ export default function BookDetails() {
             "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=240&h=240&fit=crop",
           authorFollowers: Number(b.authorFollowers || b.followers || 16),
           authorBio: b.authorBio || b.author_bio || b.authorStory || "",
-          audioSrc: pickAudio(b),
+          audioSrc: pickAudio(b), // ✅ This now returns correct URL without double "audio/"
           copies_available: b.copies_available || 0,
           copies_total: b.copies_total || 0,
           format: b.format || "HARD_COPY",
@@ -208,6 +225,8 @@ export default function BookDetails() {
 
         // Normalize current book
         const normalizedBook = normalize(book);
+        console.log("Normalized book data:", normalizedBook);
+        console.log("Audio source:", normalizedBook.audioSrc);
         setBookData(normalizedBook);
         setAuthorFollowers(normalizedBook.authorFollowers);
 
@@ -252,34 +271,49 @@ export default function BookDetails() {
   // ====== Audio DOM event listeners ======
   useEffect(() => {
     const el = audioRef.current;
-    if (!el) return;
+    if (!el) {
+      console.log("Audio ref not available yet");
+      return;
+    }
+
+    console.log("Setting up audio event listeners");
 
     const onLoaded = () => {
-      console.log('Audio loaded, duration:', el.duration);
+      console.log('✅ Audio loaded, duration:', el.duration);
       setDuration(el.duration || 0);
       setAudioError(false);
       setAudioLoading(false);
     };
+    
     const onTime = () => {
       setCurTime(el.currentTime || 0);
     };
+    
     const onEnded = () => {
+      console.log("✅ Audio playback ended");
       setIsPlaying(false);
       setCurTime(0);
     };
+    
     const onError = (e) => {
-      console.error('Audio error:', e);
+      console.error('❌ Audio error event:', e);
+      console.error('Audio error details:', el.error);
       setAudioError(true);
       setIsPlaying(false);
       setAudioLoading(false);
     };
+    
     const onWaiting = () => {
+      console.log("⏳ Audio waiting/buffering");
       setAudioLoading(true);
     };
+    
     const onCanPlay = () => {
+      console.log("✅ Audio can start playing");
       setAudioLoading(false);
     };
 
+    // Add event listeners
     el.addEventListener("loadedmetadata", onLoaded);
     el.addEventListener("timeupdate", onTime);
     el.addEventListener("ended", onEnded);
@@ -287,7 +321,9 @@ export default function BookDetails() {
     el.addEventListener("waiting", onWaiting);
     el.addEventListener("canplay", onCanPlay);
 
+    // Cleanup
     return () => {
+      console.log("Cleaning up audio event listeners");
       el.removeEventListener("loadedmetadata", onLoaded);
       el.removeEventListener("timeupdate", onTime);
       el.removeEventListener("ended", onEnded);
@@ -297,68 +333,118 @@ export default function BookDetails() {
     };
   }, [bookData?.audioSrc]);
 
-  // Reset when audio src changes
+  // ✅ FIXED: Reset when audio src changes - properly loads new audio
   useEffect(() => {
+    console.log("🔄 Resetting audio state for new source:", bookData?.audioSrc);
     setIsPlaying(false);
     setCurTime(0);
     setDuration(0);
     setAudioError(false);
     setAudioLoading(false);
+    setPlaybackRate(1.0);
     
     if (audioRef.current && bookData?.audioSrc) {
       try {
+        console.log("🎵 Setting audio source and loading:", bookData.audioSrc);
+        // Use direct src attribute and call load()
         audioRef.current.src = bookData.audioSrc;
-        audioRef.current.load();
+        audioRef.current.load(); // This is crucial for reloading audio
+        
+        // Preload the audio
+        audioRef.current.preload = "metadata";
       } catch (err) {
         console.error('Error setting audio source:', err);
         setAudioError(true);
       }
+    } else if (audioRef.current) {
+      // Clear audio if no source
+      audioRef.current.src = "";
     }
   }, [bookData?.audioSrc]);
 
-  // ✅ Audio Player – COMPLETELY FIXED
+  // ✅ Apply playback rate when it changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
+  // ✅ FIXED: Audio Player - properly handles audio loading and playback
   const toggleAudio = async () => {
+    console.log("🎵 toggleAudio called");
+    console.log("Audio ref:", audioRef.current);
+    console.log("Audio source:", bookData?.audioSrc);
+    console.log("Currently playing:", isPlaying);
+    console.log("Audio error state:", audioError);
+
     const el = audioRef.current;
-    if (!el || !bookData?.audioSrc) {
+    if (!el) {
+      console.error("❌ Audio element not found");
       setAudioError(true);
+      return;
+    }
+
+    if (!bookData?.audioSrc) {
+      console.error("❌ No audio source available");
+      setAudioError(true);
+      setToast({ 
+        open: true, 
+        msg: "Audio file is not available for this book." 
+      });
+      setTimeout(() => setToast({ open: false, msg: "" }), 3000);
       return;
     }
 
     try {
       if (isPlaying) {
         // Pause audio
+        console.log("⏸️ Pausing audio");
         el.pause();
         setIsPlaying(false);
       } else {
         // Play audio
+        console.log("▶️ Attempting to play audio");
         setAudioLoading(true);
         setAudioError(false);
         
-        // Ensure audio source is properly set
-        if (!el.src || el.src !== bookData.audioSrc) {
-          el.src = bookData.audioSrc;
+        // Ensure audio is properly loaded
+        if (el.readyState < 2) { // HAVE_CURRENT_DATA or better
+          console.log("🔄 Audio not ready, loading first");
+          await el.load();
         }
 
-        // Try to play with proper error handling
+        // Modern browsers require a user gesture to play audio
         const playPromise = el.play();
         
         if (playPromise !== undefined) {
           playPromise
             .then(() => {
+              console.log("✅ Audio playback started successfully");
               setIsPlaying(true);
               setAudioError(false);
             })
             .catch((err) => {
-              console.error("Audio play failed:", err);
+              console.error("❌ Audio play() promise rejected:", err);
               setAudioError(true);
               setIsPlaying(false);
               
-              // Show user-friendly error message
+              let errorMsg = "Audio playback failed. ";
+              switch (err.name) {
+                case "NotAllowedError":
+                  errorMsg += "Browser blocked autoplay. Please interact with the page first.";
+                  break;
+                case "NotSupportedError":
+                  errorMsg += "Audio format not supported.";
+                  break;
+                default:
+                  errorMsg += "Please check your connection and try again.";
+              }
+              
               setToast({ 
                 open: true, 
-                msg: "Audio playback failed. Please check your connection." 
+                msg: errorMsg 
               });
-              setTimeout(() => setToast({ open: false, msg: "" }), 3000);
+              setTimeout(() => setToast({ open: false, msg: "" }), 4000);
             })
             .finally(() => {
               setAudioLoading(false);
@@ -366,15 +452,41 @@ export default function BookDetails() {
         }
       }
     } catch (err) {
-      console.error("Audio toggle error:", err);
+      console.error("❌ Unexpected error in toggleAudio:", err);
       setAudioError(true);
       setIsPlaying(false);
       setAudioLoading(false);
     }
   };
 
+  // ✅ NEW: Speed control function
+  const changePlaybackSpeed = (speed) => {
+    setPlaybackRate(speed);
+    setShowSpeedMenu(false);
+    
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+  };
+
+  // ✅ NEW: Rewind function (10 seconds)
+  const rewind = () => {
+    if (!audioRef.current || audioError) return;
+    const newTime = Math.max(0, curTime - 10);
+    audioRef.current.currentTime = newTime;
+    setCurTime(newTime);
+  };
+
+  // ✅ NEW: Fast forward function (10 seconds)
+  const fastForward = () => {
+    if (!audioRef.current || audioError) return;
+    const newTime = Math.min(duration, curTime + 10);
+    audioRef.current.currentTime = newTime;
+    setCurTime(newTime);
+  };
+
   const format = (sec = 0) => {
-    if (!isFinite(sec)) return "0:00";
+    if (!isFinite(sec) || isNaN(sec)) return "0:00";
     const s = Math.floor(sec % 60);
     const m = Math.floor(sec / 60);
     return `${m}:${String(s).padStart(2, "0")}`;
@@ -415,9 +527,9 @@ export default function BookDetails() {
       />
     ));
 
-  // ✅ Borrow Button – Fixed
+  // ✅ Borrow Button – WORKING
   const handleBorrow = () => {
-    if (bookData.copies_available === 0) return;
+    if (!bookData || bookData.copies_available === 0) return;
     
     // Store book data for the form
     localStorage.setItem('borrowNow', JSON.stringify(bookData));
@@ -576,23 +688,22 @@ export default function BookDetails() {
           <div className="mt-6">
             <h3 className="font-bold text-gray-800">Summary of the Book</h3>
             <p className="text-sm text-gray-700 mt-2 leading-relaxed whitespace-pre-line">
-              {baseSummary.split(".")[0] + (baseSummary ? "..." : "")}
-              {baseSummary.split(".").length > 1 && (
+               {summaryIntro}...
                 <button
-                  onClick={() => {
-                    setPdTab("summary");
-                    setPdExpanded(true);
-                    specRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                  className="ml-2 font-semibold hover:underline text-sky-600"
-                >
-                  Read More
-                </button>
-              )}
-            </p>
+               onClick={() => {
+              setPdTab("summary");
+               setPdExpanded(true);
+               specRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+             }}
+             className="ml-2 font-semibold hover:underline text-sky-600"
+            >
+           Read More
+          </button>
+         </p>
+
           </div>
 
-          {/* Availability + Audio + PDF */}
+          {/* Availability + Enhanced Audio + PDF */}
           <div className="mt-6">
             <span className={`font-medium text-sm inline-flex items-center ${
               bookData.copies_available > 0 ? "text-green-600" : "text-red-600"
@@ -603,7 +714,7 @@ export default function BookDetails() {
               {bookData.copies_available > 0 ? "Available" : "Out of Stock"}
             </span>
 
-            {/* Audio row - COMPLETELY FIXED */}
+            {/* ✅ ENHANCED: Audio row with speed, rewind, fast forward */}
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -655,21 +766,86 @@ export default function BookDetails() {
                 </>
               )}
 
-              {/* ✅ Audio element - COMPLETELY FIXED */}
+              {/* ✅ NEW: Audio Controls - Speed, Rewind, Fast Forward */}
+              {bookData.audioSrc && !audioError && duration > 0 && (
+                <div className="flex items-center gap-1 border-l border-gray-200 pl-2 ml-2">
+                  {/* Speed Control */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                      className="flex items-center gap-1 text-xs text-gray-600 hover:text-sky-600 px-2 py-1 rounded hover:bg-gray-100"
+                      aria-label="Playback speed"
+                    >
+                      <Gauge className="w-4 h-4" />
+                      <span>{playbackRate}x</span>
+                    </button>
+                    
+                    {showSpeedMenu && (
+                      <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[80px]">
+                        {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speed) => (
+                          <button
+                            key={speed}
+                            onClick={() => changePlaybackSpeed(speed)}
+                            className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+                              playbackRate === speed ? 'bg-sky-50 text-sky-600 font-medium' : 'text-gray-700'
+                            }`}
+                          >
+                            {speed}x
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Rewind */}
+                  <button
+                    type="button"
+                    onClick={rewind}
+                    disabled={!bookData.audioSrc || audioError}
+                    className="text-gray-600 hover:text-sky-600 p-1 rounded hover:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    aria-label="Rewind 10 seconds"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+
+                  {/* Fast Forward */}
+                  <button
+                    type="button"
+                    onClick={fastForward}
+                    disabled={!bookData.audioSrc || audioError}
+                    className="text-gray-600 hover:text-sky-600 p-1 rounded hover:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    aria-label="Fast forward 10 seconds"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* ✅ FIXED: Audio element - uses direct src and proper loading */}
               <audio
                 ref={audioRef}
-                src={bookData.audioSrc || undefined}
                 preload="metadata"
                 crossOrigin="anonymous"
-                onError={(e) => {
-                  console.error('Audio element error:', e);
+                src={bookData?.audioSrc || ""}
+                onError={() => {
+                  console.error('Audio element onError triggered');
                   setAudioError(true);
                 }}
               />
 
+              {/* ✅ FIXED: PDF Download - handles both full URLs and relative paths */}
               <a
-                href={bookData.pdfLink}
+                href={
+                  bookData.pdfLink?.startsWith("http")
+                    ? bookData.pdfLink
+                    : bookData.pdfLink?.startsWith("/")
+                    ? `http://127.0.0.1:8000${bookData.pdfLink}`
+                    : `http://127.0.0.1:8000/media/${bookData.pdfLink}`
+                }
                 download
+                target="_blank"
+                rel="noopener noreferrer"
                 className="ml-auto inline-flex items-center gap-1 text-sm text-gray-700 font-semibold border border-gray-300 px-4 py-2 rounded hover:bg-gray-100"
               >
                 <Download className="w-4 h-4" />
@@ -705,7 +881,7 @@ export default function BookDetails() {
             </button>
           </div>
         </div>
-
+        
         {/* ============== SPECIFICATION & SUMMARY ============== */}
         <div ref={specRef} className="lg:col-span-2">
           <div className="mt-10 rounded-lg border border-gray-300 overflow-hidden bg-white">
@@ -715,7 +891,7 @@ export default function BookDetails() {
 
             <div className="border-t border-gray-300">
               <div className="px-4 sm:px-5 pt-3">
-                {/* ✅ Summary & Spec Tabs */}
+                {/* Summary & Spec Tabs */}
                 <div className="flex flex-wrap items-center gap-2">
                   {["summary", "spec", "author"].map((t) => (
                     <button
